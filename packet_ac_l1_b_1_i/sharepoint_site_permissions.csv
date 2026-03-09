@@ -1,0 +1,6 @@
+site_name,principal_type,principal_id,role
+Contracts-FCI,Group,a3d24710-8b6a-4dc1-8d0c-4fe6b1fdd111,Contribute
+Contracts-FCI,Group,9de6d4e0-6f37-4d8d-b733-9e1309a3d222,Owner
+Contracts-FCI,User,44e2ab31-a0d3-4d65-8d46-50c3d3176f09,Read
+Marketing-Hub,Group,3cb2b0a3-d77f-445f-a08f-26c8659f2333,Read
+Marketing-Hub,Group,3cb2b0a3-d77f-445f-a08f-26c8659f2333,Read

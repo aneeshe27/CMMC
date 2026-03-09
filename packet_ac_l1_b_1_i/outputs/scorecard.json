@@ -1,0 +1,18 @@
+{
+  "control_id": "AC.L1-B.1.I",
+  "status": "MET",
+  "findings": [],
+  "evidence_refs": [
+    "control_doc.md",
+    "entra_users.csv",
+    "entra_groups.csv",
+    "entra_group_members.csv",
+    "sharepoint_site_permissions.csv",
+    "intune_devices.csv",
+    "authorized_devices.csv",
+    "entra_service_principals.csv",
+    "authorized_processes.csv",
+    "fci_access_events.csv"
+  ],
+  "remediation": []
+}

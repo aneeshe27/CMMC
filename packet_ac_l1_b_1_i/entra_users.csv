@@ -1,0 +1,11 @@
+user_id,user_principal_name,display_name,account_enabled,user_type
+3f8a9a61-09fd-4d7b-8f4e-7d2d8e6cc101,alice.johnson@contoso-demo.com,Alice Johnson,true,Member
+4b6d2f7c-c7a2-4cb0-9f9f-92b86b5a2102,bob.lee@contoso-demo.com,Bob Lee,true,Member
+9f2d7f5e-2b45-4c0d-88f4-1d0d5f77a303,carol.ng@contoso-demo.com,Carol Ng,true,Member
+26a0c6a1-782d-4fb6-9f4a-4a0e763ff404,daniel.kim@contoso-demo.com,Daniel Kim,true,Member
+6cb61c56-e0a6-4e1a-b90a-1bf4f5f6b505,erin.white@contoso-demo.com,Erin White,true,Member
+0a55f153-0d17-4dc0-9c9d-7a3f0ce8f606,frank.mills@contoso-demo.com,Frank Mills,true,Member
+08f4db5b-3f87-4ce8-b41e-e3268fe55707,grace.partner_external#EXT#@contoso-demo.onmicrosoft.com,Grace Partner,true,Guest
+70e97b7c-10c5-4938-9cf6-239f0ce12808,hank.turner@contoso-demo.com,Hank Turner,false,Member
+44e2ab31-a0d3-4d65-8d46-50c3d3176f09,svc-fci-bot@contoso-demo.com,SVC FCI Bot,true,Member
+12f5d7de-8ab4-4c4c-90bb-a937cb0e2e10,ivy.chen@contoso-demo.com,Ivy Chen,true,Member

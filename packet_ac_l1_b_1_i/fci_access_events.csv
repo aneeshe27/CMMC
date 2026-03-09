@@ -1,0 +1,5 @@
+timestamp,site_name,actor_type,actor_id,device_id,action
+2026-03-03T09:15:01Z,Contracts-FCI,User,3f8a9a61-09fd-4d7b-8f4e-7d2d8e6cc101,dev-001,Read
+2026-03-03T09:17:22Z,Contracts-FCI,User,4b6d2f7c-c7a2-4cb0-9f9f-92b86b5a2102,dev-002,Contribute
+2026-03-03T09:21:45Z,Contracts-FCI,App,spn-001,dev-010,Sync
+2026-03-03T09:31:05Z,Marketing-Hub,User,6cb61c56-e0a6-4e1a-b90a-1bf4f5f6b505,dev-099,Read
