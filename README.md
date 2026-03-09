@@ -120,16 +120,54 @@ If optional process/device files are not present, related objectives are marked 
 - `NOT MET`: one or more findings
 - `NOT APPLICABLE`: no SharePoint permissions were found for the configured FCI site
 
-## Demo Inject Examples (to force `NOT MET`)
 
-- Unauthorized user access:
-  - Add direct user permission in `sharepoint_site_permissions.csv` for a user not in `FCI-Authorized`
-- Guest/external user access:
-  - Add direct permission for user `08f4db5b-3f87-4ce8-b41e-e3268fe55707` on `Contracts-FCI`
-- Unauthorized/disabled app event:
-  - Add `Contracts-FCI,App,spn-002,...` event row in `fci_access_events.csv`
-- Unauthorized/unmanaged/non-compliant device event:
-  - Add `Contracts-FCI,...,device_id=dev-099,...` event row in `fci_access_events.csv`
+## Objective-Based Injects (A-F)
+
+Use one inject at a time for a clear demo narrative. These are expected to return `NOT MET`.
+
+### [a] Authorized users are identified
+- File: `packet_ac_l1_b_1_i/sharepoint_site_permissions.csv`
+- Inject row:
+  - `Contracts-FCI,User,user-unknown-001,Read`
+- Expected failure reason:
+  - Effective user is not found in `entra_users.csv`.
+
+### [b] Processes acting on behalf of authorized users are identified
+- File: `packet_ac_l1_b_1_i/authorized_processes.csv`
+- Inject/corruption:
+  - Remove `Contracts-FCI,spn-001` (leave header only).
+- Expected failure reason:
+  - No authorized process list remains for `Contracts-FCI`.
+
+### [c] Authorized devices are identified
+- File: `packet_ac_l1_b_1_i/authorized_devices.csv`
+- Inject/corruption:
+  - Remove all `Contracts-FCI,...` rows (leave header only).
+- Expected failure reason:
+  - No authorized device set remains for `Contracts-FCI`.
+
+### [d] Access limited to authorized users
+- File: `packet_ac_l1_b_1_i/sharepoint_site_permissions.csv`
+- Inject row:
+  - `Contracts-FCI,User,08f4db5b-3f87-4ce8-b41e-e3268fe55707,Read`
+- Expected failure reason:
+  - User is `Guest` and not in `FCI-Authorized`.
+
+### [e] Access limited to authorized processes
+- File: `packet_ac_l1_b_1_i/fci_access_events.csv`
+- Inject row:
+  - `2026-03-03T10:05:00Z,Contracts-FCI,App,spn-002,dev-010,Sync`
+- Expected failure reason:
+  - `spn-002` is disabled and not in `authorized_processes.csv`.
+
+### [f] Access limited to authorized devices
+- File: `packet_ac_l1_b_1_i/fci_access_events.csv`
+- Inject row:
+  - `2026-03-03T10:06:00Z,Contracts-FCI,User,3f8a9a61-09fd-4d7b-8f4e-7d2d8e6cc101,dev-099,Read`
+- Expected failure reason:
+  - `dev-099` is unmanaged, non-compliant, and not in `authorized_devices.csv`.
+
+
 
 ## Project Structure
 
