@@ -410,15 +410,15 @@ def _action_for_finding(finding: dict[str, str], source_stack: str) -> dict[str,
     message = finding.get("message", "")
     if "Unauthorized user" in message or "Guest/external user" in message:
         if source_stack.startswith("Microsoft"):
-            api = "DELETE /sites/{site-id}/permissions/{permission-id}"
+            api = "DELETE /groups/{group-id}/members/{user-id}/$ref"
             owner = "IT Security Owner + CUI Data Owner"
         else:
-            api = "DELETE /2.0/collaborations/{collaboration_id}"
-            owner = "IT Security Owner + Box Folder Owner"
+            api = "DELETE /api/v1/groups/{groupId}/users/{userId}"
+            owner = "IT Security Owner + CUI Data Owner"
         return {
-            "proposed_action": "Remove unauthorized principal from the CUI resource.",
+            "proposed_action": "Remove unauthorized principal from the CUI-authorized group.",
             "candidate_api_call": api,
-            "risk": "May disrupt business access if the principal is misclassified.",
+            "risk": "May disrupt business access if the group membership is legitimate but undocumented.",
             "required_approval": owner,
         }
     if "device" in message.lower():
@@ -575,6 +575,9 @@ def verify_packet(packet_dir: str | Path) -> dict[str, Any]:
         is_authorized_member = user_id in authorized_members
 
         for src in sources:
+            access_path = ""
+            if src.source_principal_type == "Group":
+                access_path = f" through group '{src.source_principal_id}'"
             if not is_enabled:
                 objective_status["d_access_limited_to_authorized_users"] = "NOT MET"
                 findings.append(
@@ -582,7 +585,7 @@ def verify_packet(packet_dir: str | Path) -> dict[str, Any]:
                         "severity": "high",
                         "message": (
                             f"Disabled account '{user_name}' has effective access to "
-                            f"'{resource_name}'."
+                            f"'{resource_name}'{access_path}."
                         ),
                         "evidence_ref": src.evidence_ref,
                     }
@@ -594,7 +597,7 @@ def verify_packet(packet_dir: str | Path) -> dict[str, Any]:
                         "severity": "high",
                         "message": (
                             f"Guest/external user '{user_name}' has effective access to "
-                            f"'{resource_name}'."
+                            f"'{resource_name}'{access_path}."
                         ),
                         "evidence_ref": src.evidence_ref,
                     }
@@ -606,7 +609,8 @@ def verify_packet(packet_dir: str | Path) -> dict[str, Any]:
                         "severity": "high",
                         "message": (
                             f"Unauthorized user '{user_name}' has effective access to "
-                            f"'{resource_name}' and is not in '{authorized_group_name}'."
+                            f"'{resource_name}'{access_path} and is not in "
+                            f"'{authorized_group_name}'."
                         ),
                         "evidence_ref": src.evidence_ref,
                     }

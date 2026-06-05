@@ -53,7 +53,11 @@ In the app:
 
 - Select the Microsoft CSV packet or the Okta/Box/Jamf JSON packet.
 - Preview the raw evidence shape.
-- Click **Verify AC.L2-3.1.1**.
+- Click **Run NCAT**.
+- Use **Inject User** or **Inject Device** to simulate evidence drift in the
+  runtime packet.
+- Use **Approve** to apply the proposed remediation to the runtime packet and
+  watch NCAT return to `MET`.
 - Review normalization, runtime metrics, objective statuses, findings, and
   candidate remediation actions.
 
@@ -136,15 +140,20 @@ Both packets normalize into:
 
 Use one inject at a time for a clean video narrative.
 
-### Microsoft Unauthorized User
+### Microsoft Group-Membership Drift
 
-Append to `packet_ac_l2_3_1_1_microsoft/sharepoint_site_permissions.csv`:
+In NCAT mode, **Inject User** modifies the runtime copy of
+`entra_group_members.csv`, adding the external guest user to the existing
+`CUI-Authorized` group:
 
 ```csv
-Contracts-CUI,User,08f4db5b-3f87-4ce8-b41e-e3268fe55707,Read
+a3d24710-8b6a-4dc1-8d0c-4fe6b1fdd111,08f4db5b-3f87-4ce8-b41e-e3268fe55707
 ```
 
-Expected result: `NOT MET`; guest/external user and unauthorized user findings.
+Expected result: `NOT MET`; NCAT expands group permissions into effective user
+access and finds that the external guest now reaches the CUI resource through
+the authorized group. **Approve** removes the injected group membership from the
+runtime packet and returns the result to `MET`.
 
 ### Microsoft Unauthorized Device
 
@@ -156,13 +165,15 @@ Contracts-CUI,dev-001
 
 Expected result: `NOT MET`; device authorization-policy mismatch.
 
-### Okta/Box/Jamf Unauthorized User
+### Okta/Box/Jamf Group-Membership Drift
 
-Append a collaboration entry in `box_collaborations.json` granting
-`00u9guest` access to `CUI-Contracts-Box-Folder`.
+In NCAT mode, **Inject User** modifies the runtime copy of `okta_groups.json`,
+adding `00u9guest` to the embedded users for `CUI-Authorized`.
 
-Expected result: `NOT MET`; guest/external user and unauthorized user findings,
-with a candidate Box collaboration removal action.
+Expected result: `NOT MET`; NCAT expands the Box group collaboration through
+Okta group membership and finds that the external guest now has effective CUI
+access. **Approve** removes the injected Okta group membership and returns the
+result to `MET`.
 
 ### Okta/Box/Jamf Unauthorized Device
 
@@ -171,6 +182,24 @@ Add an event in `access_events.json` where `00u1alice` accesses
 
 Expected result: `NOT MET`; unmanaged, non-compliant, and unauthorized device
 findings, with a candidate Jamf investigation/update action.
+
+## NCAT Demo Flow
+
+| Step | What Happens | Expected Result |
+|------|--------------|-----------------|
+| Run NCAT | Runtime packet is created from the clean representative packet | `MET` |
+| Inject User | External user is added to the authorized group in the runtime packet | `NOT MET` |
+| Approve | Runtime packet is remediated by removing the injected membership | `MET` |
+| Reject | Runtime packet is left unchanged | remains `NOT MET` |
+| Ticket | Finding is recorded for follow-up; packet is left unchanged | remains `NOT MET` |
+
+## Time-to-Finding Comparison
+
+| Metric | Manual Baseline | NCAT Demo |
+|--------|-----------------|-----------|
+| Evidence review | Human review of identity, group, permission, device, process, and access-event exports | Normalized automatically |
+| Time to finding | Manual review required across multiple exports | Measured in milliseconds in the runtime packet |
+| Output | Notes, spreadsheets, or GRC tasks | Scorecard, evidence references, objective status, and approval-gated remediation |
 
 ## Project Structure
 

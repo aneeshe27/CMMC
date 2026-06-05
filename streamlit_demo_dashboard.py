@@ -142,6 +142,21 @@ def _remove_csv_rows(path: Path, predicate: Any) -> int:
     return removed
 
 
+def _append_csv_dict_row_once(path: Path, row: dict[str, str]) -> bool:
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+        fieldnames = reader.fieldnames or list(row)
+    if any(all(existing.get(key) == value for key, value in row.items()) for existing in rows):
+        return False
+    rows.append(row)
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+    return True
+
+
 def _load_json(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
@@ -151,48 +166,69 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
+def _microsoft_group_id(packet_dir: Path, group_name: str) -> str:
+    for row in _read_csv_rows(packet_dir / "entra_groups.csv"):
+        if row.get("group_name") == group_name:
+            return row.get("group_id", "")
+    return ""
+
+
+def _microsoft_guest_user_id(packet_dir: Path) -> str:
+    for row in _read_csv_rows(packet_dir / "entra_users.csv"):
+        if row.get("user_type") == "Guest":
+            return row.get("user_id", "")
+    return ""
+
+
+def _okta_authorized_group(payload: dict[str, Any]) -> dict[str, Any] | None:
+    for group in payload.get("groups", []):
+        if group.get("profile", {}).get("name") == "CUI-Authorized":
+            return group
+    return None
+
+
+def _okta_guest_user(packet_dir: Path) -> dict[str, Any] | None:
+    users = _load_json(packet_dir / "okta_users.json")
+    for user in users.get("items", []):
+        if user.get("type", {}).get("name") == "Guest":
+            return user
+    return None
+
+
 def _inject_unauthorized_user(packet_dir: Path) -> str:
     if _is_okta_box_jamf_packet(packet_dir):
-        path = packet_dir / "box_collaborations.json"
+        path = packet_dir / "okta_groups.json"
         payload = _load_json(path)
-        if any(entry.get("id") == "collab_bad_guest" for entry in payload["entries"]):
-            return "Unauthorized Okta guest collaboration was already present."
-        payload["entries"].append(
+        group = _okta_authorized_group(payload)
+        guest = _okta_guest_user(packet_dir)
+        if not group or not guest:
+            return "Could not inject Okta user drift because the authorized group or guest user was missing."
+        embedded = group.setdefault("_embedded", {}).setdefault("users", [])
+        if any(user.get("id") == guest.get("id") for user in embedded):
+            return "Unauthorized Okta guest group membership was already present."
+        embedded.append(
             {
-                "type": "collaboration",
-                "id": "collab_bad_guest",
-                "created_at": "2026-03-03T10:04:00-06:00",
-                "modified_at": "2026-03-03T10:04:00-06:00",
-                "status": "accepted",
-                "role": "viewer",
-                "item": {
-                    "type": "folder",
-                    "id": "box_folder_7788",
-                    "name": "CUI-Contracts-Box-Folder",
+                "id": guest.get("id", ""),
+                "profile": {
+                    "login": guest.get("profile", {}).get("login", ""),
                 },
-                "accessible_by": {
-                    "type": "user",
-                    "id": "00u9guest",
-                    "name": "Partner User",
-                },
-                "created_by": {
-                    "type": "user",
-                    "id": "00u1alice",
-                    "name": "Alice Johnson",
-                },
+                "ncat_injected": True,
             }
         )
-        payload["total_count"] = len(payload["entries"])
         _write_json(path, payload)
-        return "Injected Box collaboration granting the external Okta guest access to CUI."
+        return "Injected group-membership drift: external Okta guest added to CUI-Authorized."
 
-    changed = _append_csv_row_once(
-        packet_dir / "sharepoint_site_permissions.csv",
-        ["Contracts-CUI", "User", "08f4db5b-3f87-4ce8-b41e-e3268fe55707", "Read"],
+    group_id = _microsoft_group_id(packet_dir, "CUI-Authorized")
+    guest_id = _microsoft_guest_user_id(packet_dir)
+    if not group_id or not guest_id:
+        return "Could not inject Microsoft user drift because the authorized group or guest user was missing."
+    changed = _append_csv_dict_row_once(
+        packet_dir / "entra_group_members.csv",
+        {"group_id": group_id, "user_id": guest_id},
     )
     if not changed:
-        return "Unauthorized Microsoft guest permission was already present."
-    return "Injected SharePoint permission granting the external Entra guest access to CUI."
+        return "Unauthorized Microsoft guest group membership was already present."
+    return "Injected group-membership drift: external Entra guest added to CUI-Authorized."
 
 
 def _inject_unauthorized_device(packet_dir: Path) -> str:
@@ -234,6 +270,71 @@ def _inject_unauthorized_device(packet_dir: Path) -> str:
     if not removed:
         return "Device allowlist mismatch was already present."
     return "Injected device allowlist drift by removing dev-001 from approved CUI devices."
+
+
+def _repair_unauthorized_user(packet_dir: Path) -> str:
+    if _is_okta_box_jamf_packet(packet_dir):
+        path = packet_dir / "okta_groups.json"
+        payload = _load_json(path)
+        group = _okta_authorized_group(payload)
+        if not group:
+            return "Could not repair Okta user drift because CUI-Authorized was missing."
+        embedded = group.setdefault("_embedded", {}).setdefault("users", [])
+        before = len(embedded)
+        group["_embedded"]["users"] = [
+            user for user in embedded if user.get("id") != "00u9guest"
+        ]
+        _write_json(path, payload)
+        removed = before - len(group["_embedded"]["users"])
+        if removed:
+            return "Approved remediation applied: removed external Okta guest from CUI-Authorized."
+        return "No injected Okta guest group membership was present to remove."
+
+    group_id = _microsoft_group_id(packet_dir, "CUI-Authorized")
+    guest_id = _microsoft_guest_user_id(packet_dir)
+    removed = _remove_csv_rows(
+        packet_dir / "entra_group_members.csv",
+        lambda row: row.get("group_id") == group_id and row.get("user_id") == guest_id,
+    )
+    if removed:
+        return "Approved remediation applied: removed external Entra guest from CUI-Authorized."
+    return "No injected Microsoft guest group membership was present to remove."
+
+
+def _repair_unauthorized_device(packet_dir: Path) -> str:
+    if _is_okta_box_jamf_packet(packet_dir):
+        path = packet_dir / "access_events.json"
+        payload = _load_json(path)
+        before = len(payload.get("events", []))
+        payload["events"] = [
+            event for event in payload.get("events", []) if event.get("uuid") != "evt_bad_device"
+        ]
+        _write_json(path, payload)
+        removed = before - len(payload["events"])
+        if removed:
+            return "Approved remediation applied: removed injected unmanaged Jamf device event."
+        return "No injected Jamf device event was present to remove."
+
+    changed = _append_csv_dict_row_once(
+        packet_dir / "authorized_devices.csv",
+        {"site_name": "Contracts-CUI", "device_id": "dev-001"},
+    )
+    if changed:
+        return "Approved remediation applied: restored dev-001 to approved CUI devices."
+    return "dev-001 was already present in approved CUI devices."
+
+
+def _approve_action(packet_dir: Path, finding: str) -> str:
+    if "Guest/external user" in finding or "Unauthorized user" in finding:
+        return _repair_unauthorized_user(packet_dir)
+    if "device" in finding.lower():
+        return _repair_unauthorized_device(packet_dir)
+    return "Approval recorded, but this finding type does not have an automated packet fix yet."
+
+
+def _rerun() -> None:
+    rerun = getattr(st, "rerun", None) or getattr(st, "experimental_rerun")
+    rerun()
 
 
 def _finding_signature(result: dict[str, Any]) -> str:
@@ -381,7 +482,9 @@ def _render_verification_result(packet_dir: str | Path, heading: str) -> None:
         if proposed_actions:
             st.markdown("### Human-Approved Remediation Actions")
             actions_for_display = []
+            finding_signature = _finding_signature(result)
             for idx, action in enumerate(proposed_actions, start=1):
+                finding_text = action.get("finding", "")
                 actions_for_display.append(
                     {
                         "approval_state": "Pending approval",
@@ -392,10 +495,22 @@ def _render_verification_result(packet_dir: str | Path, heading: str) -> None:
                     }
                 )
                 cols = st.columns([1, 1, 1, 4])
-                cols[0].button("Approve", key=f"approve_{idx}_{_finding_signature(result)}")
-                cols[1].button("Reject", key=f"reject_{idx}_{_finding_signature(result)}")
-                cols[2].button("Ticket", key=f"ticket_{idx}_{_finding_signature(result)}")
-                cols[3].caption(action.get("finding", ""))
+                if cols[0].button("Approve", key=f"approve_{idx}_{finding_signature}"):
+                    st.session_state.ncat_event_log.append(
+                        _approve_action(Path(packet_dir), finding_text)
+                    )
+                    _rerun()
+                if cols[1].button("Reject", key=f"reject_{idx}_{finding_signature}"):
+                    st.session_state.ncat_event_log.append(
+                        f"Rejected remediation; evidence left unchanged for finding: {finding_text}"
+                    )
+                    _rerun()
+                if cols[2].button("Ticket", key=f"ticket_{idx}_{finding_signature}"):
+                    st.session_state.ncat_event_log.append(
+                        f"Created ticket; evidence left unchanged for finding: {finding_text}"
+                    )
+                    _rerun()
+                cols[3].caption(finding_text)
             st.dataframe(actions_for_display, use_container_width=True, hide_index=True)
 
         st.markdown("### Evidence Used")

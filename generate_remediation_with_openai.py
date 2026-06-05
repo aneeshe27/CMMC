@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import ssl
 import sys
 import urllib.error
 import urllib.request
@@ -24,6 +25,15 @@ from pathlib import Path
 
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 DEFAULT_MODEL = "gpt-4.1-mini"
+
+
+def _ssl_context() -> ssl.SSLContext:
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return ssl.create_default_context()
 
 
 def _load_text(path: Path) -> str:
@@ -67,10 +77,16 @@ def _call_openai(api_key: str, model: str, prompt: str) -> str:
     )
 
     try:
-        with urllib.request.urlopen(request, timeout=90) as response:
+        with urllib.request.urlopen(
+            request, timeout=90, context=_ssl_context()
+        ) as response:
             body = response.read().decode("utf-8")
     except urllib.error.HTTPError as err:
         detail = err.read().decode("utf-8", errors="replace")
+        if err.code == 401:
+            raise RuntimeError(
+                "OpenAI API HTTP 401: invalid or unauthorized API key."
+            ) from err
         raise RuntimeError(f"OpenAI API HTTP {err.code}: {detail}") from err
     except urllib.error.URLError as err:
         raise RuntimeError(f"OpenAI API request failed: {err}") from err
