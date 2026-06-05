@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import csv
+import hashlib
 import json
+import shutil
 from collections import Counter
 from pathlib import Path
+from typing import Any
 
 import streamlit as st
 
@@ -18,47 +22,13 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("NexGen CMMC Level 2 Continuous Verifier")
-st.markdown(
-    """
-This demo verifies CMMC Level 2 `AC.L2-3.1.1` using deterministic, explainable checks.
-It evaluates whether only authorized users, processes, and devices can access a CUI resource.
-"""
-)
 
-st.subheader("Demo Scope")
-st.markdown(
-    """
-- Working control: `AC.L2-3.1.1` Authorized Access Control.
-- Evidence sources: Microsoft Entra/SharePoint/Intune or Okta/Box/Jamf.
-- Architecture: raw stack exports normalize into one evidence model, then the same verifier runs.
-- AI role: explain deterministic findings and propose human-approved remediation actions.
-"""
-)
-
-packet_options = {
-    "Microsoft CSV packet": Path.cwd() / "packet_ac_l2_3_1_1_microsoft",
-    "Okta/Box/Jamf JSON packet": Path.cwd() / "packet_ac_l2_3_1_1_okta_box_jamf",
-    "Original L1 packet": Path.cwd() / "packet_ac_l1_b_1_i",
-}
-
-st.subheader("Evidence Packet")
-selected_packet_label = st.selectbox(
-    "Choose representative evidence packet",
-    options=list(packet_options),
-    index=0,
-)
-default_packet = str(packet_options[selected_packet_label].resolve())
-packet_dir = st.text_input("Evidence packet folder", value=default_packet)
-packet_path = Path(packet_dir)
-
-left, middle, right = st.columns([1, 1, 1])
-with left:
-    show_preview = st.checkbox("Preview raw evidence", value=True)
-with middle:
-    show_roadmap = st.checkbox("Show Level 2 roadmap", value=True)
-with right:
-    run_verification = st.button("Verify AC.L2-3.1.1", type="primary")
+def _init_session_state() -> None:
+    st.session_state.setdefault("ncat_running", False)
+    st.session_state.setdefault("ncat_packet_dir", "")
+    st.session_state.setdefault("ncat_source_dir", "")
+    st.session_state.setdefault("ncat_event_log", [])
+    st.session_state.setdefault("llm_attempted_signatures", set())
 
 
 def _dashboard_severity(finding: dict[str, str]) -> str:
@@ -114,51 +84,206 @@ def _safe_preview_file(path: Path) -> None:
         st.error(f"Could not read `{path.name}`: {exc}")
 
 
-if show_preview:
-    st.subheader("Raw Evidence Preview")
-    if not packet_path.exists():
-        st.error(f"Packet folder does not exist: `{packet_path}`")
-    else:
-        st.caption(
-            "The two source stacks intentionally use different raw shapes. Microsoft is flat CSV; "
-            "Okta/Box/Jamf is nested API-style JSON."
+def _runtime_packet_dir() -> Path:
+    return Path.cwd() / ".ncat_runtime" / "active_packet"
+
+
+def _start_ncat(source_dir: Path) -> Path:
+    runtime_dir = _runtime_packet_dir()
+    if runtime_dir.exists():
+        shutil.rmtree(runtime_dir)
+    shutil.copytree(source_dir, runtime_dir)
+    st.session_state.ncat_running = True
+    st.session_state.ncat_packet_dir = str(runtime_dir.resolve())
+    st.session_state.ncat_source_dir = str(source_dir.resolve())
+    st.session_state.ncat_event_log = [
+        "NCAT monitor started from representative evidence packet."
+    ]
+    return runtime_dir
+
+
+def _reset_ncat() -> Path:
+    source_dir = Path(st.session_state.ncat_source_dir)
+    runtime_dir = _start_ncat(source_dir)
+    st.session_state.ncat_event_log = ["NCAT runtime evidence reset to clean baseline."]
+    return runtime_dir
+
+
+def _stop_ncat() -> None:
+    st.session_state.ncat_running = False
+    st.session_state.ncat_event_log.append("NCAT monitor stopped.")
+
+
+def _is_okta_box_jamf_packet(packet_dir: Path) -> bool:
+    return (packet_dir / "box_collaborations.json").exists()
+
+
+def _append_csv_row_once(path: Path, row: list[str]) -> bool:
+    existing = path.read_text(encoding="utf-8").splitlines()
+    row_text = ",".join(row)
+    if row_text in existing:
+        return False
+    with path.open("a", encoding="utf-8", newline="") as handle:
+        handle.write("\n" + row_text)
+    return True
+
+
+def _remove_csv_rows(path: Path, predicate: Any) -> int:
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+        fieldnames = reader.fieldnames or []
+    kept = [row for row in rows if not predicate(row)]
+    removed = len(rows) - len(kept)
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(kept)
+    return removed
+
+
+def _load_json(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def _inject_unauthorized_user(packet_dir: Path) -> str:
+    if _is_okta_box_jamf_packet(packet_dir):
+        path = packet_dir / "box_collaborations.json"
+        payload = _load_json(path)
+        if any(entry.get("id") == "collab_bad_guest" for entry in payload["entries"]):
+            return "Unauthorized Okta guest collaboration was already present."
+        payload["entries"].append(
+            {
+                "type": "collaboration",
+                "id": "collab_bad_guest",
+                "created_at": "2026-03-03T10:04:00-06:00",
+                "modified_at": "2026-03-03T10:04:00-06:00",
+                "status": "accepted",
+                "role": "viewer",
+                "item": {
+                    "type": "folder",
+                    "id": "box_folder_7788",
+                    "name": "CUI-Contracts-Box-Folder",
+                },
+                "accessible_by": {
+                    "type": "user",
+                    "id": "00u9guest",
+                    "name": "Partner User",
+                },
+                "created_by": {
+                    "type": "user",
+                    "id": "00u1alice",
+                    "name": "Alice Johnson",
+                },
+            }
         )
-        for path in sorted(packet_path.iterdir()):
-            if path.is_file() and path.suffix in {".csv", ".json", ".md"}:
-                with st.expander(path.name, expanded=path.name == "control_doc.md"):
-                    _safe_preview_file(path)
+        payload["total_count"] = len(payload["entries"])
+        _write_json(path, payload)
+        return "Injected Box collaboration granting the external Okta guest access to CUI."
 
-
-if show_roadmap:
-    st.subheader("CMMC Level 2 Coverage Roadmap")
-    st.dataframe(
-        [
-            {
-                "area": "Access Control",
-                "requirement": "AC.L2-3.1.1",
-                "status": "Implemented in this demo",
-                "evidence pattern": "identity, groups, permissions, devices, processes, access events",
-            },
-            {
-                "area": "Access Control",
-                "requirement": "Related AC objectives",
-                "status": "Adapter-ready roadmap",
-                "evidence pattern": "same normalized entities plus requirement-specific tests",
-            },
-            {
-                "area": "Other Level 2 families",
-                "requirement": "Awareness, Audit, Configuration, IA, IR, SI, etc.",
-                "status": "Roadmap only",
-                "evidence pattern": "new objective mappers and deterministic checks",
-            },
-        ],
-        use_container_width=True,
-        hide_index=True,
+    changed = _append_csv_row_once(
+        packet_dir / "sharepoint_site_permissions.csv",
+        ["Contracts-CUI", "User", "08f4db5b-3f87-4ce8-b41e-e3268fe55707", "Read"],
     )
+    if not changed:
+        return "Unauthorized Microsoft guest permission was already present."
+    return "Injected SharePoint permission granting the external Entra guest access to CUI."
 
 
-if run_verification:
-    st.subheader("Verification Result")
+def _inject_unauthorized_device(packet_dir: Path) -> str:
+    if _is_okta_box_jamf_packet(packet_dir):
+        path = packet_dir / "access_events.json"
+        payload = _load_json(path)
+        if any(event.get("uuid") == "evt_bad_device" for event in payload["events"]):
+            return "Unauthorized Jamf device event was already present."
+        payload["events"].append(
+            {
+                "uuid": "evt_bad_device",
+                "published": "2026-03-03T16:00:00.000Z",
+                "eventType": "box.folder.download",
+                "actor": {
+                    "type": "User",
+                    "id": "00u1alice",
+                    "displayName": "Alice Johnson",
+                },
+                "target": {
+                    "type": "box.folder",
+                    "id": "box_folder_7788",
+                    "displayName": "CUI-Contracts-Box-Folder",
+                },
+                "client": {
+                    "ipAddress": "203.0.113.99",
+                    "userAgent": "Box Web",
+                    "device": {"source": "jamf", "id": "jamf-199"},
+                },
+            }
+        )
+        _write_json(path, payload)
+        return "Injected CUI access event from unmanaged/non-compliant Jamf device."
+
+    removed = _remove_csv_rows(
+        packet_dir / "authorized_devices.csv",
+        lambda row: row.get("site_name") == "Contracts-CUI"
+        and row.get("device_id") == "dev-001",
+    )
+    if not removed:
+        return "Device allowlist mismatch was already present."
+    return "Injected device allowlist drift by removing dev-001 from approved CUI devices."
+
+
+def _finding_signature(result: dict[str, Any]) -> str:
+    payload = {
+        "control_id": result.get("control_id"),
+        "status": result.get("status"),
+        "findings": result.get("findings", []),
+        "proposed_actions": result.get("proposed_actions", []),
+        "source_stack": result.get("context", {}).get("source_stack"),
+    }
+    encoded = json.dumps(payload, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _render_llm_once(packet_dir: str | Path, result: dict[str, Any]) -> None:
+    if result["status"] != "NOT MET":
+        return
+
+    st.markdown("### LLM Remediation")
+    signature = _finding_signature(result)
+    remediation_path = Path(packet_dir) / "outputs" / "remediation_steps.md"
+
+    if signature in st.session_state.llm_attempted_signatures:
+        if remediation_path.exists():
+            st.caption("LLM remediation already generated for this exact finding state.")
+            st.markdown(remediation_path.read_text(encoding="utf-8"))
+        else:
+            st.info("LLM remediation was already attempted for this finding state.")
+        return
+
+    st.session_state.llm_attempted_signatures.add(signature)
+    try:
+        with st.spinner("waiting for llm remediation_steps"):
+            remediation_path = generate_remediation_markdown(packet_dir)
+        st.success("LLM remediation generated once for this finding state.")
+        remediation_text = remediation_path.read_text(encoding="utf-8")
+        st.markdown(remediation_text)
+        with remediation_path.open("rb") as handle:
+            st.download_button(
+                "Download remediation_steps.md",
+                data=handle.read(),
+                file_name="remediation_steps.md",
+                mime="text/markdown",
+            )
+    except Exception as exc:
+        st.error(f"Could not generate LLM remediation: {exc}")
+
+
+def _render_verification_result(packet_dir: str | Path, heading: str) -> None:
+    st.subheader(heading)
     try:
         result = verify_packet(packet_dir)
         scorecard_path, report_path = write_outputs(packet_dir, result)
@@ -267,9 +392,9 @@ if run_verification:
                     }
                 )
                 cols = st.columns([1, 1, 1, 4])
-                cols[0].button("Approve", key=f"approve_{idx}")
-                cols[1].button("Reject", key=f"reject_{idx}")
-                cols[2].button("Ticket", key=f"ticket_{idx}")
+                cols[0].button("Approve", key=f"approve_{idx}_{_finding_signature(result)}")
+                cols[1].button("Reject", key=f"reject_{idx}_{_finding_signature(result)}")
+                cols[2].button("Ticket", key=f"ticket_{idx}_{_finding_signature(result)}")
                 cols[3].caption(action.get("finding", ""))
             st.dataframe(actions_for_display, use_container_width=True, hide_index=True)
 
@@ -296,22 +421,129 @@ if run_verification:
                 mime="text/markdown",
             )
 
-        if status == "NOT MET":
-            st.markdown("### LLM Remediation")
-            try:
-                with st.spinner("waiting for llm remediation_steps"):
-                    remediation_path = generate_remediation_markdown(packet_dir)
-                st.success("LLM remediation generated.")
-                remediation_text = remediation_path.read_text(encoding="utf-8")
-                st.markdown(remediation_text)
-                with remediation_path.open("rb") as handle:
-                    st.download_button(
-                        "Download remediation_steps.md",
-                        data=handle.read(),
-                        file_name="remediation_steps.md",
-                        mime="text/markdown",
-                    )
-            except Exception as exc:
-                st.error(f"Could not generate LLM remediation: {exc}")
+        _render_llm_once(packet_dir, result)
     except Exception as exc:
         st.error(f"Verification failed: {exc}")
+
+
+_init_session_state()
+
+st.title("NexGen CMMC Level 2 Continuous Verifier")
+st.markdown(
+    """
+This demo verifies CMMC Level 2 `AC.L2-3.1.1` using deterministic, explainable checks.
+It evaluates whether only authorized users, processes, and devices can access a CUI resource.
+"""
+)
+
+st.subheader("Demo Scope")
+st.markdown(
+    """
+- Working control: `AC.L2-3.1.1` Authorized Access Control.
+- Evidence sources: Microsoft Entra/SharePoint/Intune or Okta/Box/Jamf.
+- Architecture: raw stack exports normalize into one evidence model, then the same verifier runs.
+- AI role: explain deterministic findings and propose human-approved remediation actions.
+"""
+)
+
+packet_options = {
+    "Microsoft CSV packet": Path.cwd() / "packet_ac_l2_3_1_1_microsoft",
+    "Okta/Box/Jamf JSON packet": Path.cwd() / "packet_ac_l2_3_1_1_okta_box_jamf",
+    "Original L1 packet": Path.cwd() / "packet_ac_l1_b_1_i",
+}
+
+st.subheader("Evidence Packet")
+selected_packet_label = st.selectbox(
+    "Choose representative evidence packet",
+    options=list(packet_options),
+    index=0,
+)
+default_packet = str(packet_options[selected_packet_label].resolve())
+packet_dir = st.text_input("Evidence packet folder", value=default_packet)
+source_packet_path = Path(packet_dir)
+
+left, middle, right = st.columns([1, 1, 1])
+with left:
+    show_preview = st.checkbox("Preview raw evidence", value=True)
+with middle:
+    show_roadmap = st.checkbox("Show Level 2 roadmap", value=True)
+with right:
+    run_ncat = st.button("Run NCAT", type="primary")
+
+if run_ncat:
+    if source_packet_path.exists():
+        packet_dir = str(_start_ncat(source_packet_path))
+    else:
+        st.error(f"Packet folder does not exist: `{source_packet_path}`")
+
+if st.session_state.ncat_running and st.session_state.ncat_packet_dir:
+    packet_dir = st.session_state.ncat_packet_dir
+
+packet_path = Path(packet_dir)
+
+if st.session_state.ncat_running:
+    st.subheader("NCAT Continuous Monitor")
+    st.caption(
+        "NCAT is watching the active runtime packet. Each inject mutates the runtime evidence "
+        "and triggers one Streamlit rerun; the LLM remediation call is gated to one attempt per unique finding state."
+    )
+    status_cols = st.columns([2, 1, 1, 1])
+    status_cols[0].info(f"Active runtime evidence: `{packet_path}`")
+    if status_cols[1].button("Inject User"):
+        st.session_state.ncat_event_log.append(_inject_unauthorized_user(packet_path))
+    if status_cols[2].button("Inject Device"):
+        st.session_state.ncat_event_log.append(_inject_unauthorized_device(packet_path))
+    if status_cols[3].button("Reset"):
+        packet_path = _reset_ncat()
+        packet_dir = str(packet_path)
+
+    if st.button("Stop NCAT"):
+        _stop_ncat()
+
+    st.markdown("#### NCAT Event Log")
+    for event in st.session_state.ncat_event_log[-6:]:
+        st.write(f"- {event}")
+
+if show_preview:
+    st.subheader("Raw Evidence Preview")
+    if not packet_path.exists():
+        st.error(f"Packet folder does not exist: `{packet_path}`")
+    else:
+        st.caption(
+            "The two source stacks intentionally use different raw shapes. Microsoft is flat CSV; "
+            "Okta/Box/Jamf is nested API-style JSON."
+        )
+        for path in sorted(packet_path.iterdir()):
+            if path.is_file() and path.suffix in {".csv", ".json", ".md"}:
+                with st.expander(path.name, expanded=path.name == "control_doc.md"):
+                    _safe_preview_file(path)
+
+if show_roadmap:
+    st.subheader("CMMC Level 2 Coverage Roadmap")
+    st.dataframe(
+        [
+            {
+                "area": "Access Control",
+                "requirement": "AC.L2-3.1.1",
+                "status": "Implemented in this demo",
+                "evidence pattern": "identity, groups, permissions, devices, processes, access events",
+            },
+            {
+                "area": "Access Control",
+                "requirement": "Related AC objectives",
+                "status": "Adapter-ready roadmap",
+                "evidence pattern": "same normalized entities plus requirement-specific tests",
+            },
+            {
+                "area": "Other Level 2 families",
+                "requirement": "Awareness, Audit, Configuration, IA, IR, SI, etc.",
+                "status": "Roadmap only",
+                "evidence pattern": "new objective mappers and deterministic checks",
+            },
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+if st.session_state.ncat_running:
+    _render_verification_result(packet_dir, "NCAT Monitor Result")
