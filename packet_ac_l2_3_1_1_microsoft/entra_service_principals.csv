@@ -1,0 +1,3 @@
+app_id,display_name,account_enabled
+spn-001,Contracts Sync App,true
+spn-002,Legacy ETL,false

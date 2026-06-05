@@ -1,0 +1,26 @@
+{
+  "applications": [
+    {
+      "id": "okta-app-box-sync",
+      "label": "Box CUI Sync Automation",
+      "status": "ACTIVE",
+      "signOnMode": "OPENID_CONNECT",
+      "_links": {
+        "self": {
+          "href": "https://orion-demo.okta.com/api/v1/apps/okta-app-box-sync"
+        }
+      }
+    },
+    {
+      "id": "okta-app-legacy-etl",
+      "label": "Legacy ETL",
+      "status": "INACTIVE",
+      "signOnMode": "SAML_2_0",
+      "_links": {
+        "self": {
+          "href": "https://orion-demo.okta.com/api/v1/apps/okta-app-legacy-etl"
+        }
+      }
+    }
+  ]
+}

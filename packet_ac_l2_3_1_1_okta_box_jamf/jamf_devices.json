@@ -1,0 +1,55 @@
+{
+  "computers": [
+    {
+      "id": "jamf-101",
+      "name": "ALICE-MACBOOK",
+      "udid": "6DD86A95-0C0B-4C8D-9BB1-8D9C81F20101",
+      "management_status": "Managed",
+      "last_contact_time_utc": "2026-03-03T09:09:58Z",
+      "extension_attributes": [
+        {
+          "name": "complianceStatus",
+          "value": "compliant"
+        },
+        {
+          "name": "ownership",
+          "value": "Corporate"
+        }
+      ]
+    },
+    {
+      "id": "jamf-102",
+      "name": "BOB-MACBOOK",
+      "udid": "AF1B37A0-31C7-4EA1-A557-597D7E4E5102",
+      "management_status": "Managed",
+      "last_contact_time_utc": "2026-03-03T09:16:10Z",
+      "extension_attributes": [
+        {
+          "name": "complianceStatus",
+          "value": "compliant"
+        },
+        {
+          "name": "ownership",
+          "value": "Corporate"
+        }
+      ]
+    },
+    {
+      "id": "jamf-199",
+      "name": "PARTNER-BYOD",
+      "udid": "E36F7E2C-BA92-44F8-9EF2-6E6F3D4C9199",
+      "management_status": "Unmanaged",
+      "last_contact_time_utc": "2026-02-28T22:01:00Z",
+      "extension_attributes": [
+        {
+          "name": "complianceStatus",
+          "value": "noncompliant"
+        },
+        {
+          "name": "ownership",
+          "value": "Personal"
+        }
+      ]
+    }
+  ]
+}

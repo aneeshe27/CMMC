@@ -1,0 +1,19 @@
+{
+  "policy_id": "cui-contracts-box-policy",
+  "version": "2026-03-03",
+  "resources": [
+    {
+      "resource_id": "box_folder_7788",
+      "resource_name": "CUI-Contracts-Box-Folder",
+      "authorized_group_name": "CUI-Authorized",
+      "allowed_device_ids": [
+        "jamf-101",
+        "jamf-102"
+      ],
+      "allowed_process_ids": [
+        "okta-app-box-sync"
+      ],
+      "approval_owner": "cui-data-owner@orion-demo.com"
+    }
+  ]
+}

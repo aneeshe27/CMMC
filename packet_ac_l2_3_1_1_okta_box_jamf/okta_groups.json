@@ -1,0 +1,62 @@
+{
+  "groups": [
+    {
+      "id": "00g_cui_authorized",
+      "created": "2026-01-10T10:00:00.000Z",
+      "profile": {
+        "name": "CUI-Authorized",
+        "description": "Approved CUI users"
+      },
+      "_embedded": {
+        "users": [
+          {
+            "id": "00u1alice",
+            "profile": {
+              "login": "alice.johnson@orion-demo.com"
+            }
+          },
+          {
+            "id": "00u2bob",
+            "profile": {
+              "login": "bob.lee@orion-demo.com"
+            }
+          },
+          {
+            "id": "00u3carol",
+            "profile": {
+              "login": "carol.ng@orion-demo.com"
+            }
+          }
+        ]
+      },
+      "_links": {
+        "users": {
+          "href": "https://orion-demo.okta.com/api/v1/groups/00g_cui_authorized/users"
+        }
+      }
+    },
+    {
+      "id": "00g_box_owners",
+      "created": "2026-01-10T10:05:00.000Z",
+      "profile": {
+        "name": "Box-CUI-Owners",
+        "description": "CUI folder owners"
+      },
+      "_embedded": {
+        "users": [
+          {
+            "id": "00u1alice",
+            "profile": {
+              "login": "alice.johnson@orion-demo.com"
+            }
+          }
+        ]
+      },
+      "_links": {
+        "users": {
+          "href": "https://orion-demo.okta.com/api/v1/groups/00g_box_owners/users"
+        }
+      }
+    }
+  ]
+}

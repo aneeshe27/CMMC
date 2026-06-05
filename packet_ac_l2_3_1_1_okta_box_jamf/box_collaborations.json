@@ -1,0 +1,74 @@
+{
+  "total_count": 3,
+  "entries": [
+    {
+      "type": "collaboration",
+      "id": "collab_1001",
+      "created_at": "2026-03-03T09:00:00-06:00",
+      "modified_at": "2026-03-03T09:00:00-06:00",
+      "status": "accepted",
+      "role": "editor",
+      "item": {
+        "type": "folder",
+        "id": "box_folder_7788",
+        "name": "CUI-Contracts-Box-Folder"
+      },
+      "accessible_by": {
+        "type": "group",
+        "id": "00g_cui_authorized",
+        "name": "CUI-Authorized"
+      },
+      "created_by": {
+        "type": "user",
+        "id": "00u1alice",
+        "name": "Alice Johnson"
+      }
+    },
+    {
+      "type": "collaboration",
+      "id": "collab_1002",
+      "created_at": "2026-03-03T09:01:00-06:00",
+      "modified_at": "2026-03-03T09:01:00-06:00",
+      "status": "accepted",
+      "role": "co-owner",
+      "item": {
+        "type": "folder",
+        "id": "box_folder_7788",
+        "name": "CUI-Contracts-Box-Folder"
+      },
+      "accessible_by": {
+        "type": "group",
+        "id": "00g_box_owners",
+        "name": "Box-CUI-Owners"
+      },
+      "created_by": {
+        "type": "user",
+        "id": "00u1alice",
+        "name": "Alice Johnson"
+      }
+    },
+    {
+      "type": "collaboration",
+      "id": "collab_2001",
+      "created_at": "2026-03-03T09:02:00-06:00",
+      "modified_at": "2026-03-03T09:02:00-06:00",
+      "status": "accepted",
+      "role": "viewer",
+      "item": {
+        "type": "folder",
+        "id": "box_folder_9001",
+        "name": "Marketing-Reference"
+      },
+      "accessible_by": {
+        "type": "user",
+        "id": "00u9guest",
+        "name": "Partner User"
+      },
+      "created_by": {
+        "type": "user",
+        "id": "00u2bob",
+        "name": "Bob Lee"
+      }
+    }
+  ]
+}

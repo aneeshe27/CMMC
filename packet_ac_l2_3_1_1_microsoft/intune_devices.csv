@@ -1,0 +1,5 @@
+device_id,device_name,managed,compliant,ownership,last_checkin
+dev-001,ALICE-LAPTOP,true,true,Corporate,2026-03-03T09:10:00Z
+dev-002,BOB-LAPTOP,true,true,Corporate,2026-03-03T09:14:00Z
+dev-010,AUTOMATION-RUNNER,true,true,Corporate,2026-03-03T09:20:00Z
+dev-099,UNMANAGED-CONTRACTOR,false,false,Personal,2026-02-28T22:01:00Z

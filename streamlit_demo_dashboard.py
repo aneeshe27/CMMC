@@ -1,7 +1,8 @@
-"""Streamlit demo app for AC.L1-B.1.I evidence verification."""
+"""Streamlit demo app for AC.L2-3.1.1 evidence verification."""
 
 from __future__ import annotations
 
+import json
 from collections import Counter
 from pathlib import Path
 
@@ -12,91 +13,57 @@ from generate_remediation_with_openai import generate_remediation_markdown
 
 
 st.set_page_config(
-    page_title="CMMC L1 Demo Agent - AC.L1-B.1.I",
-    page_icon="🔐",
+    page_title="NexGen CMMC Level 2 Verifier - AC.L2-3.1.1",
+    page_icon="AC",
     layout="wide",
 )
 
-st.title("CMMC L1 Demo Agent: AC.L1-B.1.I (Authorized Access Control)")
+st.title("NexGen CMMC Level 2 Continuous Verifier")
 st.markdown(
     """
-This demo verifies one CMMC Level 1 control using deterministic, explainable checks.
-It evaluates whether only authorized users, processes, and devices have effective access to an FCI SharePoint site.
-
-**Control in scope**
-- `AC.L1-B.1.I` Authorized Access Control
-- Requirement: Limit system access to authorized users, processes, and devices.
-- Demo scope: deterministic checks for authorized users, authorized processes, and authorized devices.
+This demo verifies CMMC Level 2 `AC.L2-3.1.1` using deterministic, explainable checks.
+It evaluates whether only authorized users, processes, and devices can access a CUI resource.
 """
 )
 
-st.subheader("How This Demo Works")
+st.subheader("Demo Scope")
 st.markdown(
     """
-1. You provide a local **evidence packet folder**.
-2. The verifier reads the control config and CSV exports.
-3. It expands SharePoint group permissions to individual users.
-4. It checks effective users plus process/device access events against policy rules.
-5. It returns `MET`, `NOT MET`, or `NOT APPLICABLE` with concrete evidence references.
-6. If device/process evidence files are present, it also checks authorized processes and Intune-managed devices.
+- Working control: `AC.L2-3.1.1` Authorized Access Control.
+- Evidence sources: Microsoft Entra/SharePoint/Intune or Okta/Box/Jamf.
+- Architecture: raw stack exports normalize into one evidence model, then the same verifier runs.
+- AI role: explain deterministic findings and propose human-approved remediation actions.
 """
 )
 
-st.subheader("Evidence Packet Files (Natural Language Explanation)")
-st.markdown(
-    """
-- `control_doc.md`  
-  Human-readable policy and scope for the control, including:
-  FCI site name, authorized group name, and rules (for example, no guest users).
+packet_options = {
+    "Microsoft CSV packet": Path.cwd() / "packet_ac_l2_3_1_1_microsoft",
+    "Okta/Box/Jamf JSON packet": Path.cwd() / "packet_ac_l2_3_1_1_okta_box_jamf",
+    "Original L1 packet": Path.cwd() / "packet_ac_l1_b_1_i",
+}
 
-- `entra_users.csv`  
-  Entra user inventory used to evaluate each user identity:
-  `user_id`, username/email, enabled/disabled status, and whether the user is `Member` or `Guest`.
-
-- `entra_groups.csv`  
-  Group catalog that maps `group_id` to `group_name`.
-  This is where the verifier finds the authorized group (for example, `FCI-Authorized`).
-
-- `entra_group_members.csv`  
-  Group membership mapping (`group_id` -> `user_id`).
-  This allows the verifier to determine whether a user is in the authorized group.
-
-- `sharepoint_site_permissions.csv`  
-  Simplified export of who has access to a SharePoint site.
-  Access can be granted to users directly or to groups.
-  If granted to groups, the verifier expands group members and treats them as effective access.
-
-- `intune_devices.csv` + `authorized_devices.csv`  
-  Simulated Intune posture and approved device list for the FCI site.
-  Devices must be managed, compliant, and approved to pass device checks.
-
-- `entra_service_principals.csv` + `authorized_processes.csv`  
-  Process/app identities and allowed process list for the FCI site.
-  Apps must be enabled and explicitly authorized.
-
-- `fci_access_events.csv`  
-  Simplified access events that connect users/apps to devices.
-  This allows objective checks for process- and device-based access controls.
-"""
+st.subheader("Evidence Packet")
+selected_packet_label = st.selectbox(
+    "Choose representative evidence packet",
+    options=list(packet_options),
+    index=0,
 )
-
-default_packet = str((Path.cwd() / "packet_ac_l1_b_1_i").resolve())
+default_packet = str(packet_options[selected_packet_label].resolve())
 packet_dir = st.text_input("Evidence packet folder", value=default_packet)
+packet_path = Path(packet_dir)
 
-left, right = st.columns([1, 1])
+left, middle, right = st.columns([1, 1, 1])
 with left:
-    show_preview = st.checkbox("Preview evidence tables", value=True)
+    show_preview = st.checkbox("Preview raw evidence", value=True)
+with middle:
+    show_roadmap = st.checkbox("Show Level 2 roadmap", value=True)
 with right:
-    run_verification = st.button("Verify AC.L1-B.1.I", type="primary")
+    run_verification = st.button("Verify AC.L2-3.1.1", type="primary")
 
 
 def _dashboard_severity(finding: dict[str, str]) -> str:
     raw = finding.get("severity", "info").lower()
     message = finding.get("message", "")
-
-    # Demo-friendly severity normalization:
-    # SharePoint unauthorized-user findings stay high;
-    # device allowlist mismatches are shown as medium policy drift.
     if raw == "high" and "Unauthorized device" in message:
         return "medium"
     return raw
@@ -106,11 +73,11 @@ def _root_cause_bucket(finding: dict[str, str]) -> str:
     message = finding.get("message", "")
     if "Unauthorized user" in message or "Guest/external user" in message:
         return "Unauthorized user access"
-    if "Unauthorized device" in message or "Non-compliant device" in message:
+    if "device" in message.lower():
         return "Device policy mismatch"
     if "process/app" in message:
         return "Unauthorized process access"
-    if "does not exist in entra_users.csv" in message:
+    if "does not exist" in message:
         return "Unknown identity reference"
     return "Other"
 
@@ -118,42 +85,77 @@ def _root_cause_bucket(finding: dict[str, str]) -> str:
 def _severity_badge(sev: str) -> str:
     s = sev.lower()
     if s == "high":
-        return "🔴 HIGH"
+        return "HIGH"
     if s == "medium":
-        return "🟠 MEDIUM"
+        return "MEDIUM"
     if s == "low":
-        return "🟡 LOW"
-    return "🔵 INFO"
+        return "LOW"
+    return "INFO"
 
 
-def _safe_preview_csv(label: str, path: Path) -> None:
-    st.markdown(f"**{label}**")
+def _safe_preview_file(path: Path) -> None:
+    st.markdown(f"**{path.name}**")
     try:
-        rows = _read_csv_rows(path)
-        if rows:
+        if path.suffix == ".csv":
+            rows = _read_csv_rows(path)
             st.dataframe(rows, use_container_width=True)
-        else:
-            st.info("File is present but contains no data rows.")
+            return
+        if path.suffix == ".json":
+            with path.open("r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+            st.json(payload, expanded=False)
+            return
+        if path.suffix == ".md":
+            text = path.read_text(encoding="utf-8")
+            st.code(text[:4000], language="markdown")
+            return
+        st.caption("Preview not available for this file type.")
     except Exception as exc:  # demo-friendly display
         st.error(f"Could not read `{path.name}`: {exc}")
 
 
 if show_preview:
-    st.subheader("Evidence Preview")
-    packet_path = Path(packet_dir)
-    _safe_preview_csv("Entra Users", packet_path / "entra_users.csv")
-    _safe_preview_csv("Entra Groups", packet_path / "entra_groups.csv")
-    _safe_preview_csv("Entra Group Members", packet_path / "entra_group_members.csv")
-    _safe_preview_csv(
-        "SharePoint Site Permissions", packet_path / "sharepoint_site_permissions.csv"
+    st.subheader("Raw Evidence Preview")
+    if not packet_path.exists():
+        st.error(f"Packet folder does not exist: `{packet_path}`")
+    else:
+        st.caption(
+            "The two source stacks intentionally use different raw shapes. Microsoft is flat CSV; "
+            "Okta/Box/Jamf is nested API-style JSON."
+        )
+        for path in sorted(packet_path.iterdir()):
+            if path.is_file() and path.suffix in {".csv", ".json", ".md"}:
+                with st.expander(path.name, expanded=path.name == "control_doc.md"):
+                    _safe_preview_file(path)
+
+
+if show_roadmap:
+    st.subheader("CMMC Level 2 Coverage Roadmap")
+    st.dataframe(
+        [
+            {
+                "area": "Access Control",
+                "requirement": "AC.L2-3.1.1",
+                "status": "Implemented in this demo",
+                "evidence pattern": "identity, groups, permissions, devices, processes, access events",
+            },
+            {
+                "area": "Access Control",
+                "requirement": "Related AC objectives",
+                "status": "Adapter-ready roadmap",
+                "evidence pattern": "same normalized entities plus requirement-specific tests",
+            },
+            {
+                "area": "Other Level 2 families",
+                "requirement": "Awareness, Audit, Configuration, IA, IR, SI, etc.",
+                "status": "Roadmap only",
+                "evidence pattern": "new objective mappers and deterministic checks",
+            },
+        ],
+        use_container_width=True,
+        hide_index=True,
     )
-    _safe_preview_csv("Intune Devices", packet_path / "intune_devices.csv")
-    _safe_preview_csv("Authorized Devices", packet_path / "authorized_devices.csv")
-    _safe_preview_csv(
-        "Entra Service Principals", packet_path / "entra_service_principals.csv"
-    )
-    _safe_preview_csv("Authorized Processes", packet_path / "authorized_processes.csv")
-    _safe_preview_csv("FCI Access Events", packet_path / "fci_access_events.csv")
+
 
 if run_verification:
     st.subheader("Verification Result")
@@ -170,33 +172,45 @@ if run_verification:
             st.warning("Status: NOT APPLICABLE")
 
         findings = result.get("findings", [])
+        context = result.get("context", {})
         severity_counts = Counter(_dashboard_severity(f) for f in findings)
         total_findings = len(findings)
-        high_count = severity_counts.get("high", 0)
-        medium_count = severity_counts.get("medium", 0)
-        low_count = severity_counts.get("low", 0)
-        info_count = severity_counts.get("info", 0)
+
+        st.markdown("### Time-to-Finding Metrics")
+        runtime = context.get("runtime_metrics", {})
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("Elapsed ms", runtime.get("verification_elapsed_ms", 0))
+        c2.metric("Users", runtime.get("users_evaluated", 0))
+        c3.metric("Devices", runtime.get("devices_evaluated", 0))
+        c4.metric("Permission Edges", runtime.get("permission_edges_evaluated", 0))
+        c5.metric("Findings", runtime.get("findings_found", total_findings))
+
+        st.markdown("### Normalization")
+        normalization = context.get("normalization_summary", {})
+        st.dataframe(
+            [{"field": key, "value": value} for key, value in normalization.items()],
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        st.json(
+            {
+                "control_id": result["control_id"],
+                "source_stack": context.get("source_stack"),
+                "resource_name": context.get("resource_name"),
+                "status": result["status"],
+                "findings_count": total_findings,
+                "effective_access_count": context.get("effective_access_count"),
+            }
+        )
 
         st.markdown("### Error Dashboard")
-        c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("Total Errors", total_findings)
-        c2.metric("High", high_count)
-        c3.metric("Medium", medium_count)
-        c4.metric("Low", low_count)
-        c5.metric("Info", info_count)
-
-        if total_findings:
-            st.markdown("#### Severity Distribution")
-            st.bar_chart(
-                {
-                    "count": {
-                        "HIGH": high_count,
-                        "MEDIUM": medium_count,
-                        "LOW": low_count,
-                        "INFO": info_count,
-                    }
-                }
-            )
+        e1, e2, e3, e4, e5 = st.columns(5)
+        e1.metric("Total Errors", total_findings)
+        e2.metric("High", severity_counts.get("high", 0))
+        e3.metric("Medium", severity_counts.get("medium", 0))
+        e4.metric("Low", severity_counts.get("low", 0))
+        e5.metric("Info", severity_counts.get("info", 0))
 
         if findings:
             st.markdown("#### Error Categories")
@@ -209,27 +223,16 @@ if run_verification:
                     )
                 ],
                 use_container_width=True,
+                hide_index=True,
             )
 
-        objectives = result["context"].get("assessment_objectives")
-
-        st.json(
-            {
-                "control_id": result["control_id"],
-                "status": result["status"],
-                "findings_count": total_findings,
-                "effective_access_count": result["context"]["effective_access_count"],
-            }
-        )
-
+        objectives = context.get("assessment_objectives")
         if objectives:
             st.markdown("### Assessment Objectives")
             st.dataframe(
-                [
-                    {"objective": k, "status": v}
-                    for k, v in objectives.items()
-                ],
+                [{"objective": k, "status": v} for k, v in objectives.items()],
                 use_container_width=True,
+                hide_index=True,
             )
 
         st.markdown("### Findings")
@@ -245,9 +248,30 @@ if run_verification:
                         "evidence_ref": finding.get("evidence_ref", ""),
                     }
                 )
-            st.dataframe(findings_for_display, use_container_width=True)
+            st.dataframe(findings_for_display, use_container_width=True, hide_index=True)
         else:
             st.info("No findings. Effective access complies with configured rules.")
+
+        proposed_actions = result.get("proposed_actions", [])
+        if proposed_actions:
+            st.markdown("### Human-Approved Remediation Actions")
+            actions_for_display = []
+            for idx, action in enumerate(proposed_actions, start=1):
+                actions_for_display.append(
+                    {
+                        "approval_state": "Pending approval",
+                        "action": action.get("proposed_action", ""),
+                        "candidate_api_call": action.get("candidate_api_call", ""),
+                        "required_approval": action.get("required_approval", ""),
+                        "risk": action.get("risk", ""),
+                    }
+                )
+                cols = st.columns([1, 1, 1, 4])
+                cols[0].button("Approve", key=f"approve_{idx}")
+                cols[1].button("Reject", key=f"reject_{idx}")
+                cols[2].button("Ticket", key=f"ticket_{idx}")
+                cols[3].caption(action.get("finding", ""))
+            st.dataframe(actions_for_display, use_container_width=True, hide_index=True)
 
         st.markdown("### Evidence Used")
         for evidence in result["evidence_refs"]:
@@ -291,4 +315,3 @@ if run_verification:
                 st.error(f"Could not generate LLM remediation: {exc}")
     except Exception as exc:
         st.error(f"Verification failed: {exc}")
-

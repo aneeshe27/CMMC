@@ -1,7 +1,7 @@
 """Generate remediation markdown from verifier outputs using OpenAI Responses API.
 
 Usage:
-  python3 generate_remediation_with_openai.py --packet-dir packet_ac_l1_b_1_i
+  python3 generate_remediation_with_openai.py --packet-dir packet_ac_l2_3_1_1_microsoft
 
 Expected input files (already produced by verifier):
   <packet-dir>/outputs/scorecard.json
@@ -46,9 +46,10 @@ def _call_openai(api_key: str, model: str, prompt: str) -> str:
             {
                 "role": "system",
                 "content": (
-                    "You are a CMMC Level 1 compliance analyst. "
+                    "You are a CMMC Level 2 compliance analyst. "
                     "Given deterministic verification findings, explain why the control failed "
-                    "and provide practical remediation steps. Keep output concise and audit-ready."
+                    "and provide practical remediation steps. Keep output concise and audit-ready. "
+                    "Do not decide compliance independently; rely on the deterministic scorecard."
                 ),
             },
             {"role": "user", "content": prompt},
@@ -96,17 +97,19 @@ def _call_openai(api_key: str, model: str, prompt: str) -> str:
 
 def _build_prompt(scorecard: dict, report_md: str) -> str:
     return f"""
-The deterministic verifier has assessed CMMC AC.L1-B.1.I.
+The deterministic verifier has assessed CMMC AC.L2-3.1.1.
 
 Please produce markdown with the following sections:
 - ## Why It Failed
 - ## Remediation Steps (Prioritized)
+- ## Candidate API Actions Requiring Approval
 - ## Quick Validation Checklist
 
 Constraints:
 - Use only evidence present below.
-- Do not invent controls outside AC.L1-B.1.I.
-- Keep practical remediation actions specific to Entra + SharePoint permissions.
+- Do not invent controls outside AC.L2-3.1.1.
+- Treat candidate API calls as proposed actions only; the IT/security owner must approve.
+- Preserve risks and required approval roles if they are present in the scorecard.
 - If status is MET, explain why it passed and provide hardening recommendations only.
 
 Scorecard JSON:
@@ -145,7 +148,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--packet-dir",
-        default="packet_ac_l1_b_1_i",
+        default="packet_ac_l2_3_1_1_microsoft",
         help="Path to packet folder containing outputs/scorecard.json and outputs/report.md",
     )
     parser.add_argument(
@@ -169,4 +172,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

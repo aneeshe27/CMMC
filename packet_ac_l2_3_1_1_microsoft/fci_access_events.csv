@@ -1,0 +1,5 @@
+timestamp,site_name,actor_type,actor_id,device_id,action
+2026-03-03T09:15:01Z,Contracts-CUI,User,3f8a9a61-09fd-4d7b-8f4e-7d2d8e6cc101,dev-001,Read
+2026-03-03T09:17:22Z,Contracts-CUI,User,4b6d2f7c-c7a2-4cb0-9f9f-92b86b5a2102,dev-002,Contribute
+2026-03-03T09:21:45Z,Contracts-CUI,App,spn-001,dev-010,Sync
+2026-03-03T09:31:05Z,Marketing-Hub,User,44e2ab31-a0d3-4d65-8d46-50c3d3176f09,dev-099,Read

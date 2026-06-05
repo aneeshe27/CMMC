@@ -1,0 +1,90 @@
+{
+  "object": "list",
+  "items": [
+    {
+      "id": "00u1alice",
+      "status": "ACTIVE",
+      "created": "2026-01-12T14:21:00.000Z",
+      "profile": {
+        "login": "alice.johnson@orion-demo.com",
+        "email": "alice.johnson@orion-demo.com",
+        "displayName": "Alice Johnson",
+        "department": "Contracts"
+      },
+      "type": {
+        "id": "oty_employee",
+        "name": "Member"
+      },
+      "_links": {
+        "self": {
+          "href": "https://orion-demo.okta.com/api/v1/users/00u1alice"
+        }
+      }
+    },
+    {
+      "id": "00u2bob",
+      "status": "ACTIVE",
+      "created": "2026-01-13T15:10:00.000Z",
+      "profile": {
+        "login": "bob.lee@orion-demo.com",
+        "email": "bob.lee@orion-demo.com",
+        "displayName": "Bob Lee",
+        "department": "Engineering"
+      },
+      "type": {
+        "id": "oty_employee",
+        "name": "Member"
+      },
+      "_links": {
+        "self": {
+          "href": "https://orion-demo.okta.com/api/v1/users/00u2bob"
+        }
+      }
+    },
+    {
+      "id": "00u3carol",
+      "status": "ACTIVE",
+      "created": "2026-01-14T11:05:00.000Z",
+      "profile": {
+        "login": "carol.ng@orion-demo.com",
+        "email": "carol.ng@orion-demo.com",
+        "displayName": "Carol Ng",
+        "department": "Security"
+      },
+      "type": {
+        "id": "oty_employee",
+        "name": "Member"
+      },
+      "_links": {
+        "self": {
+          "href": "https://orion-demo.okta.com/api/v1/users/00u3carol"
+        }
+      }
+    },
+    {
+      "id": "00u9guest",
+      "status": "ACTIVE",
+      "created": "2026-02-02T18:02:00.000Z",
+      "profile": {
+        "login": "partner.user@external-example.com",
+        "email": "partner.user@external-example.com",
+        "displayName": "Partner User",
+        "department": "External"
+      },
+      "type": {
+        "id": "oty_guest",
+        "name": "Guest"
+      },
+      "_links": {
+        "self": {
+          "href": "https://orion-demo.okta.com/api/v1/users/00u9guest"
+        }
+      }
+    }
+  ],
+  "_links": {
+    "next": {
+      "href": "https://orion-demo.okta.com/api/v1/users?after=00u9guest"
+    }
+  }
+}

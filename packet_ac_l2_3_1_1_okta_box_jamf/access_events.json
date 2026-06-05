@@ -1,0 +1,96 @@
+{
+  "events": [
+    {
+      "uuid": "evt-7001",
+      "published": "2026-03-03T15:15:01.000Z",
+      "eventType": "box.folder.preview",
+      "actor": {
+        "type": "User",
+        "id": "00u1alice",
+        "displayName": "Alice Johnson"
+      },
+      "target": {
+        "type": "box.folder",
+        "id": "box_folder_7788",
+        "displayName": "CUI-Contracts-Box-Folder"
+      },
+      "client": {
+        "ipAddress": "198.51.100.10",
+        "userAgent": "Box Drive",
+        "device": {
+          "source": "jamf",
+          "id": "jamf-101"
+        }
+      }
+    },
+    {
+      "uuid": "evt-7002",
+      "published": "2026-03-03T15:17:22.000Z",
+      "eventType": "box.folder.download",
+      "actor": {
+        "type": "User",
+        "id": "00u2bob",
+        "displayName": "Bob Lee"
+      },
+      "target": {
+        "type": "box.folder",
+        "id": "box_folder_7788",
+        "displayName": "CUI-Contracts-Box-Folder"
+      },
+      "client": {
+        "ipAddress": "198.51.100.11",
+        "userAgent": "Box Web",
+        "device": {
+          "source": "jamf",
+          "id": "jamf-102"
+        }
+      }
+    },
+    {
+      "uuid": "evt-7003",
+      "published": "2026-03-03T15:21:45.000Z",
+      "eventType": "box.folder.sync",
+      "actor": {
+        "type": "App",
+        "id": "okta-app-box-sync",
+        "displayName": "Box CUI Sync Automation"
+      },
+      "target": {
+        "type": "box.folder",
+        "id": "box_folder_7788",
+        "displayName": "CUI-Contracts-Box-Folder"
+      },
+      "client": {
+        "ipAddress": "198.51.100.20",
+        "userAgent": "Box API",
+        "device": {
+          "source": "jamf",
+          "id": "jamf-101"
+        }
+      }
+    },
+    {
+      "uuid": "evt-8001",
+      "published": "2026-03-03T15:31:05.000Z",
+      "eventType": "box.folder.preview",
+      "actor": {
+        "type": "User",
+        "id": "00u9guest",
+        "displayName": "Partner User"
+      },
+      "target": {
+        "type": "box.folder",
+        "id": "box_folder_9001",
+        "displayName": "Marketing-Reference"
+      },
+      "client": {
+        "ipAddress": "203.0.113.22",
+        "userAgent": "Box Web",
+        "device": {
+          "source": "jamf",
+          "id": "jamf-199"
+        }
+      }
+    }
+  ]
+}
