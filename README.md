@@ -64,7 +64,7 @@ In the app:
 ### Run Verification From CLI
 
 ```python
-from ac_l1_b_1_i_verifier import verify_packet, write_outputs
+from ncat_verifier import verify_packet, write_outputs
 
 result = verify_packet("packet_ac_l2_3_1_1_microsoft")
 write_outputs("packet_ac_l2_3_1_1_microsoft", result)
@@ -89,7 +89,7 @@ Raw format: flat CSV exports modeled after Microsoft admin center exports.
 | `authorized_devices.csv` | Approved device list |
 | `entra_service_principals.csv` | Process/app identities |
 | `authorized_processes.csv` | Approved process list |
-| `fci_access_events.csv` | Access events linking actors and devices |
+| `cui_access_events.csv` | Access events linking actors and devices |
 
 ### Okta/Box/Jamf Packet
 
@@ -205,7 +205,7 @@ findings, with a candidate Jamf investigation/update action.
 
 ```text
 CMMC/
-├── ac_l1_b_1_i_verifier.py                    # Core verifier and adapters
+├── ncat_verifier.py                           # Core verifier and adapters
 ├── streamlit_demo_dashboard.py                # Main Streamlit v2 demo
 ├── generate_remediation_with_openai.py        # OpenAI remediation generator
 ├── packet_ac_l2_3_1_1_microsoft/              # Microsoft CSV evidence packet

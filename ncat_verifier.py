@@ -46,6 +46,16 @@ def _read_optional_csv_rows(path: Path) -> list[dict[str, str]]:
     return _read_csv_rows(path)
 
 
+def _read_microsoft_access_events(packet_path: Path) -> tuple[list[dict[str, str]], str]:
+    cui_path = packet_path / "cui_access_events.csv"
+    legacy_path = packet_path / "fci_access_events.csv"
+    if cui_path.exists():
+        return _read_csv_rows(cui_path), cui_path.name
+    if legacy_path.exists():
+        return _read_csv_rows(legacy_path), legacy_path.name
+    return [], cui_path.name
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise FileNotFoundError(f"Missing evidence file: {path}")
@@ -127,7 +137,7 @@ def _normalize_microsoft_packet(packet_path: Path, control: dict[str, Any]) -> d
     authorized_processes = _read_optional_csv_rows(
         packet_path / "authorized_processes.csv"
     )
-    access_events = _read_optional_csv_rows(packet_path / "fci_access_events.csv")
+    access_events, access_events_filename = _read_microsoft_access_events(packet_path)
 
     resource_name = control.get("resource_name")
     normalized_permissions = [
@@ -149,7 +159,7 @@ def _normalize_microsoft_packet(packet_path: Path, control: dict[str, Any]) -> d
             "device_id": row.get("device_id", ""),
             "action": row.get("action", ""),
             "timestamp": row.get("timestamp", ""),
-            "evidence_ref": f"fci_access_events.csv:row:{row.get('_row', '?')}",
+            "evidence_ref": f"{access_events_filename}:row:{row.get('_row', '?')}",
         }
         for row in access_events
     ]
@@ -226,7 +236,7 @@ def _normalize_microsoft_packet(packet_path: Path, control: dict[str, Any]) -> d
                 ("authorized_devices.csv", authorized_devices),
                 ("entra_service_principals.csv", service_principals),
                 ("authorized_processes.csv", authorized_processes),
-                ("fci_access_events.csv", access_events),
+                (access_events_filename, access_events),
             ]
             if rows
         ],

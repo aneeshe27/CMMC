@@ -32,7 +32,7 @@
 - authorized_devices.csv
 - entra_service_principals.csv
 - authorized_processes.csv
-- fci_access_events.csv
+- cui_access_events.csv
 
 ## Notes
 - This packet is intentionally constructed as a clean baseline expected to evaluate to MET.

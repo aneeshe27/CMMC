@@ -7,7 +7,7 @@ import shutil
 
 import streamlit as st
 
-from ac_l1_b_1_i_verifier import _read_csv_rows, verify_packet, write_outputs
+from ncat_verifier import _read_csv_rows, verify_packet, write_outputs
 from generate_remediation_with_openai import generate_remediation_markdown
 
 
@@ -266,4 +266,3 @@ if run_verification:
                 st.error(f"Could not generate LLM remediation: {exc}")
     except Exception as exc:
         st.error(f"Verification failed: {exc}")
-

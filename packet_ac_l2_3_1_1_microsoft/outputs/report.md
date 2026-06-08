@@ -17,7 +17,7 @@
 - `resource_permission_edges`: `2`
 
 ## Runtime Metrics
-- `verification_elapsed_ms`: `0.92`
+- `verification_elapsed_ms`: `0.76`
 - `users_evaluated`: `7`
 - `devices_evaluated`: `4`
 - `processes_evaluated`: `2`
@@ -43,7 +43,7 @@
 - `authorized_devices.csv`
 - `entra_service_principals.csv`
 - `authorized_processes.csv`
-- `fci_access_events.csv`
+- `cui_access_events.csv`
 
 ## Assessment Objectives
 - `a_authorized_users_identified`: `MET`

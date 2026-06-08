@@ -17,7 +17,7 @@
 - `resource_permission_edges`: `2`
 
 ## Runtime Metrics
-- `verification_elapsed_ms`: `0.48`
+- `verification_elapsed_ms`: `0.5`
 - `users_evaluated`: `4`
 - `devices_evaluated`: `3`
 - `processes_evaluated`: `2`

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import html
 import json
 import shutil
 from collections import Counter
@@ -12,15 +13,478 @@ from typing import Any
 
 import streamlit as st
 
-from ac_l1_b_1_i_verifier import _read_csv_rows, verify_packet, write_outputs
+from ncat_verifier import _read_csv_rows, verify_packet, write_outputs
 from generate_remediation_with_openai import generate_remediation_markdown
 
 
 st.set_page_config(
     page_title="NexGen CMMC Level 2 Verifier - AC.L2-3.1.1",
-    page_icon="AC",
+    page_icon="N",
     layout="wide",
 )
+
+
+def _inject_global_styles() -> None:
+    st.markdown(
+        """
+        <style>
+        :root {
+            --bg: #f6f7fb;
+            --panel: #ffffff;
+            --panel-soft: #f8fafc;
+            --ink: #172033;
+            --muted: #667085;
+            --line: #d9e0ea;
+            --blue: #1f6feb;
+            --action: #1f6feb;
+            --action-dark: #1a5dcc;
+            --teal: #0f766e;
+            --green: #16835b;
+            --red: #c43d3d;
+            --amber: #b87514;
+            --purple: #6941c6;
+        }
+        .stApp {
+            background:
+                linear-gradient(180deg, #f8fbff 0%, var(--bg) 36%, #eef2f6 100%);
+            color: var(--ink);
+        }
+        .block-container {
+            padding-top: 2.2rem;
+            padding-bottom: 3rem;
+            max-width: 1280px;
+        }
+        h1, h2, h3 {
+            color: var(--ink);
+            letter-spacing: 0;
+        }
+        [data-testid="stSidebar"] {
+            background: #101828;
+            color: #f8fafc;
+        }
+        [data-testid="stSidebar"] label,
+        [data-testid="stSidebar"] p,
+        [data-testid="stSidebar"] span {
+            color: #e4e7ec;
+        }
+        [data-testid="stMetric"] {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: 0 10px 24px rgba(16, 24, 40, 0.05);
+        }
+        [data-testid="stMetricLabel"] {
+            color: var(--muted);
+        }
+        [data-testid="stButton"] button {
+            border-radius: 8px;
+            border: 1px solid #cfd7e3;
+            font-weight: 650;
+            min-height: 2.55rem;
+        }
+        [data-testid="stButton"] button[kind="primary"] {
+            background: var(--action);
+            border-color: var(--action);
+            color: #ffffff;
+        }
+        [data-testid="stButton"] button[kind="primary"]:hover {
+            background: var(--action-dark);
+            border-color: var(--action-dark);
+            color: #ffffff;
+        }
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 0.5rem;
+            border-bottom: 0;
+        }
+        .stTabs [data-baseweb="tab"] {
+            background: #ffffff;
+            border: 1px solid #d0d5dd;
+            border-radius: 8px;
+            color: #344054;
+            font-weight: 750;
+            height: 2.55rem;
+            padding: 0 1rem;
+        }
+        .stTabs [data-baseweb="tab"]:hover {
+            background: #f8fafc;
+            border-color: #98a2b3;
+            color: #1d2939;
+        }
+        .stTabs [data-baseweb="tab"][aria-selected="true"] {
+            background: var(--action);
+            border-color: var(--action);
+            color: #ffffff;
+        }
+        .stTabs [data-baseweb="tab"] p {
+            font-weight: 750;
+        }
+        .stTabs [data-baseweb="tab"][aria-selected="true"] p {
+            color: #ffffff;
+        }
+        .hero {
+            border: 1px solid #cfd9e8;
+            border-radius: 8px;
+            padding: 1.45rem 1.6rem;
+            background:
+                linear-gradient(135deg, rgba(31, 111, 235, 0.10), rgba(15, 118, 110, 0.08)),
+                #ffffff;
+            box-shadow: 0 16px 40px rgba(16, 24, 40, 0.08);
+            margin-bottom: 1.1rem;
+        }
+        .eyebrow {
+            color: var(--blue);
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 0.3rem;
+        }
+        .hero h1 {
+            font-size: 2.25rem;
+            line-height: 1.08;
+            margin: 0;
+        }
+        .hero p {
+            color: #475467;
+            font-size: 1.02rem;
+            line-height: 1.55;
+            max-width: 820px;
+            margin: 0.75rem 0 0;
+        }
+        .proof-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 0.8rem;
+            margin: 0.9rem 0 1.2rem;
+        }
+        .proof-card,
+        .summary-card,
+        .action-card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: 0 10px 24px rgba(16, 24, 40, 0.05);
+        }
+        .proof-card strong,
+        .summary-card strong,
+        .action-card strong {
+            display: block;
+            color: var(--ink);
+            font-size: 0.95rem;
+            margin-bottom: 0.28rem;
+        }
+        .proof-card span,
+        .summary-card span,
+        .action-card span {
+            color: var(--muted);
+            font-size: 0.86rem;
+            line-height: 1.4;
+        }
+        .status-strip {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 1rem 1.1rem;
+            margin: 0.3rem 0 1rem;
+            box-shadow: 0 10px 24px rgba(16, 24, 40, 0.05);
+        }
+        .status-strip h3 {
+            margin: 0;
+            font-size: 1.1rem;
+        }
+        .status-strip p {
+            margin: 0.2rem 0 0;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 7.5rem;
+            border-radius: 999px;
+            padding: 0.45rem 0.8rem;
+            font-size: 0.82rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+        }
+        .pill-green {
+            color: #067647;
+            background: #dcfae6;
+            border: 1px solid #abefc6;
+        }
+        .pill-red {
+            color: #b42318;
+            background: #fee4e2;
+            border: 1px solid #fecdca;
+        }
+        .pill-amber {
+            color: #93370d;
+            background: #fef0c7;
+            border: 1px solid #fedf89;
+        }
+        .monitor-bar {
+            background: #ffffff;
+            border: 1px solid var(--line);
+            border-left: 5px solid var(--teal);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+            box-shadow: 0 10px 24px rgba(16, 24, 40, 0.05);
+        }
+        .monitor-bar strong {
+            color: var(--ink);
+        }
+        .monitor-bar span {
+            color: var(--muted);
+            font-size: 0.88rem;
+        }
+        .mini-label {
+            color: var(--muted);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-weight: 800;
+            margin-bottom: 0.25rem;
+        }
+        .section-card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .readiness-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.28fr) minmax(320px, 0.72fr);
+            gap: 1rem;
+            margin: 0.8rem 0 1rem;
+        }
+        .readiness-panel,
+        .queue-panel,
+        .pipeline-panel,
+        .comparison-panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: 0 10px 24px rgba(16, 24, 40, 0.05);
+        }
+        .panel-title {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            align-items: baseline;
+            border-bottom: 1px solid #eef2f6;
+            padding-bottom: 0.75rem;
+            margin-bottom: 1rem;
+        }
+        .panel-title h3 {
+            margin: 0;
+            font-size: 1.15rem;
+        }
+        .panel-title span {
+            color: var(--muted);
+            font-size: 0.86rem;
+        }
+        .objective-wrap {
+            display: grid;
+            grid-template-columns: 230px minmax(0, 1fr);
+            gap: 1rem;
+            align-items: center;
+        }
+        .donut {
+            width: 210px;
+            height: 210px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            position: relative;
+            margin: 0 auto;
+            box-shadow: inset 0 0 0 1px rgba(16, 24, 40, 0.06);
+        }
+        .donut::before {
+            content: "";
+            position: absolute;
+            width: 142px;
+            height: 142px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 0 0 1px #eef2f6;
+        }
+        .donut-center {
+            position: relative;
+            text-align: center;
+        }
+        .donut-center strong {
+            display: block;
+            color: var(--ink);
+            font-size: 2rem;
+            line-height: 1;
+        }
+        .donut-center span {
+            color: var(--muted);
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+        .objective-list {
+            display: grid;
+            gap: 0.55rem;
+        }
+        .objective-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 0.75rem;
+            align-items: center;
+            padding: 0.58rem 0.7rem;
+            border: 1px solid #eef2f6;
+            border-radius: 8px;
+            background: #fcfcfd;
+        }
+        .objective-row strong {
+            color: #344054;
+            font-size: 0.9rem;
+            font-weight: 750;
+        }
+        .tiny-pill {
+            border-radius: 999px;
+            padding: 0.18rem 0.52rem;
+            font-size: 0.72rem;
+            font-weight: 850;
+            letter-spacing: 0.03em;
+            white-space: nowrap;
+        }
+        .tiny-green {
+            background: #dcfae6;
+            color: #067647;
+            border: 1px solid #abefc6;
+        }
+        .tiny-red {
+            background: #fee4e2;
+            color: #b42318;
+            border: 1px solid #fecdca;
+        }
+        .tiny-amber {
+            background: #fef0c7;
+            color: #93370d;
+            border: 1px solid #fedf89;
+        }
+        .tiny-gray {
+            background: #f2f4f7;
+            color: #475467;
+            border: 1px solid #e4e7ec;
+        }
+        .queue-list {
+            display: grid;
+            gap: 0.55rem;
+        }
+        .queue-item {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 0.75rem;
+            align-items: center;
+            padding: 0.72rem 0;
+            border-bottom: 1px solid #eef2f6;
+        }
+        .queue-item:last-child {
+            border-bottom: 0;
+        }
+        .queue-item strong {
+            display: block;
+            color: #344054;
+            font-size: 0.92rem;
+        }
+        .queue-item span {
+            color: var(--muted);
+            font-size: 0.8rem;
+        }
+        .queue-arrow {
+            color: var(--action);
+            font-size: 1.35rem;
+            font-weight: 800;
+        }
+        .pipeline {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.75rem;
+        }
+        .pipeline-step {
+            border: 1px solid #e4e7ec;
+            border-radius: 8px;
+            padding: 0.85rem;
+            background: #fcfcfd;
+        }
+        .pipeline-step strong {
+            display: block;
+            color: var(--ink);
+            font-size: 0.92rem;
+            margin-bottom: 0.25rem;
+        }
+        .pipeline-step span {
+            color: var(--muted);
+            font-size: 0.82rem;
+            line-height: 1.38;
+        }
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.75rem;
+        }
+        .comparison-cell {
+            border: 1px solid #e4e7ec;
+            border-radius: 8px;
+            background: #fcfcfd;
+            padding: 0.8rem;
+        }
+        .comparison-cell strong {
+            color: var(--ink);
+            display: block;
+            font-size: 1.12rem;
+            margin-bottom: 0.2rem;
+        }
+        .comparison-cell span {
+            color: var(--muted);
+            font-size: 0.82rem;
+            line-height: 1.35;
+        }
+        div[data-testid="stDataFrame"] {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        @media (max-width: 900px) {
+            .proof-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .status-strip {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+            .readiness-grid,
+            .objective-wrap,
+            .pipeline,
+            .comparison-grid {
+                grid-template-columns: 1fr;
+            }
+            .hero h1 {
+                font-size: 1.8rem;
+            }
+        }
+        @media (max-width: 640px) {
+            .proof-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _init_session_state() -> None:
@@ -61,6 +525,296 @@ def _severity_badge(sev: str) -> str:
     if s == "low":
         return "LOW"
     return "INFO"
+
+
+def _status_class(status: str) -> str:
+    if status == "MET":
+        return "pill-green"
+    if status == "NOT MET":
+        return "pill-red"
+    return "pill-amber"
+
+
+def _status_label(status: str) -> str:
+    if status == "MET":
+        return "READY"
+    if status == "NOT MET":
+        return "ACTION REQUIRED"
+    return "NOT APPLICABLE"
+
+
+def _render_proof_cards() -> None:
+    st.markdown(
+        """
+        <div class="proof-grid">
+            <div class="proof-card">
+                <strong>Level 2 control</strong>
+                <span>AC.L2-3.1.1 mapped to CUI access objectives.</span>
+            </div>
+            <div class="proof-card">
+                <strong>Multi-stack normalization</strong>
+                <span>Microsoft CSV and Okta/Box/Jamf JSON feed one evidence model.</span>
+            </div>
+            <div class="proof-card">
+                <strong>Deterministic core</strong>
+                <span>Findings trace back to concrete evidence references.</span>
+            </div>
+            <div class="proof-card">
+                <strong>Approval-gated action</strong>
+                <span>Candidate API actions require IT/security approval.</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_summary_cards(result: dict[str, Any]) -> None:
+    context = result.get("context", {})
+    findings = result.get("findings", [])
+    runtime = context.get("runtime_metrics", {})
+    source_stack = html.escape(str(context.get("source_stack", "Unknown")))
+    resource_name = html.escape(str(context.get("resource_name", "Unknown")))
+    elapsed = html.escape(str(runtime.get("verification_elapsed_ms", 0)))
+    effective = html.escape(str(context.get("effective_access_count", 0)))
+    finding_count = html.escape(str(len(findings)))
+
+    st.markdown(
+        f"""
+        <div class="proof-grid">
+            <div class="summary-card">
+                <div class="mini-label">Source stack</div>
+                <strong>{source_stack}</strong>
+                <span>Raw platform evidence normalized before verification.</span>
+            </div>
+            <div class="summary-card">
+                <div class="mini-label">CUI resource</div>
+                <strong>{resource_name}</strong>
+                <span>Access is evaluated against the configured CUI scope.</span>
+            </div>
+            <div class="summary-card">
+                <div class="mini-label">Verification time</div>
+                <strong>{elapsed} ms</strong>
+                <span>Deterministic time-to-finding for this representative packet.</span>
+            </div>
+            <div class="summary-card">
+                <div class="mini-label">Effective users</div>
+                <strong>{effective}</strong>
+                <span>{finding_count} findings returned from objective checks.</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _objective_label(objective: str) -> str:
+    labels = {
+        "a_authorized_users_identified": "Authorized users identified",
+        "b_authorized_processes_identified": "Authorized processes identified",
+        "c_authorized_devices_identified": "Authorized devices identified",
+        "d_access_limited_to_authorized_users": "Access limited to authorized users",
+        "e_access_limited_to_authorized_processes": "Access limited to authorized processes",
+        "f_access_limited_to_authorized_devices": "Access limited to authorized devices",
+    }
+    return labels.get(objective, objective.replace("_", " ").title())
+
+
+def _tiny_status_class(status: str) -> str:
+    if status == "MET":
+        return "tiny-green"
+    if status == "NOT MET":
+        return "tiny-red"
+    if status == "NOT ASSESSED":
+        return "tiny-gray"
+    return "tiny-amber"
+
+
+def _render_objective_readiness(result: dict[str, Any]) -> None:
+    objectives = result.get("context", {}).get("assessment_objectives", {})
+    if not objectives:
+        st.info("Assessment objectives were not returned for this evidence packet.")
+        return
+
+    total = len(objectives)
+    met = sum(1 for status in objectives.values() if status == "MET")
+    failed = sum(1 for status in objectives.values() if status == "NOT MET")
+    met_pct = round((met / total) * 100) if total else 0
+    green_end = (met / total) * 100 if total else 0
+    red_end = ((met + failed) / total) * 100 if total else 0
+
+    if total:
+        gradient = (
+            f"conic-gradient(#16835b 0 {green_end:.2f}%, "
+            f"#c43d3d {green_end:.2f}% {red_end:.2f}%, "
+            f"#d0d5dd {red_end:.2f}% 100%)"
+        )
+    else:
+        gradient = "#d0d5dd"
+
+    objective_rows = "".join(
+        (
+            '<div class="objective-row">'
+            f"<strong>{html.escape(_objective_label(key))}</strong>"
+            f'<span class="tiny-pill {_tiny_status_class(status)}">'
+            f"{html.escape(status)}</span>"
+            "</div>"
+        )
+        for key, status in objectives.items()
+    )
+
+    st.markdown(
+        (
+            '<div class="readiness-panel">'
+            '<div class="panel-title">'
+            "<h3>Implementation Status</h3>"
+            "<span>AC.L2-3.1.1 objective readiness</span>"
+            "</div>"
+            '<div class="objective-wrap">'
+            f'<div class="donut" style="background: {gradient};">'
+            '<div class="donut-center">'
+            f"<strong>{met_pct}%</strong>"
+            f"<span>{met}/{total} objectives met</span>"
+            "</div>"
+            "</div>"
+            f'<div class="objective-list">{objective_rows}</div>'
+            "</div>"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+
+
+def _render_action_queue(result: dict[str, Any]) -> None:
+    findings = result.get("findings", [])
+    proposed_actions = result.get("proposed_actions", [])
+    if findings:
+        bucket_counts = Counter(_root_cause_bucket(finding) for finding in findings)
+        queue_rows = "".join(
+            (
+                '<div class="queue-item">'
+                "<div>"
+                f"<strong>{html.escape(category)}</strong>"
+                f"<span>{count} finding{'s' if count != 1 else ''} awaiting review</span>"
+                "</div>"
+                '<div class="queue-arrow">&rarr;</div>'
+                "</div>"
+            )
+            for category, count in sorted(bucket_counts.items(), key=lambda item: item[0])
+        )
+        lead = f"{len(proposed_actions)} approval-gated candidate action"
+        if len(proposed_actions) != 1:
+            lead += "s"
+    else:
+        queue_rows = (
+            '<div class="queue-item">'
+            "<div>"
+            "<strong>No remediation required</strong>"
+            "<span>Current evidence satisfies the configured CUI access policy.</span>"
+            "</div>"
+            '<div class="queue-arrow">OK</div>'
+            "</div>"
+            '<div class="queue-item">'
+            "<div>"
+            "<strong>Run drift scenario</strong>"
+            "<span>Inject a user or device issue to show time-to-finding.</span>"
+            "</div>"
+            '<div class="queue-arrow">&rarr;</div>'
+            "</div>"
+            '<div class="queue-item">'
+            "<div>"
+            "<strong>Export audit packet</strong>"
+            "<span>Scorecard and report are generated after each run.</span>"
+            "</div>"
+            '<div class="queue-arrow">&rarr;</div>'
+            "</div>"
+        )
+        lead = "No open findings"
+
+    st.markdown(
+        (
+            '<div class="queue-panel">'
+            '<div class="panel-title">'
+            "<h3>To Do</h3>"
+            f"<span>{html.escape(lead)}</span>"
+            "</div>"
+            f'<div class="queue-list">{queue_rows}</div>'
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+
+
+def _render_evidence_pipeline(result: dict[str, Any]) -> None:
+    context = result.get("context", {})
+    normalization = context.get("normalization_summary", {})
+    source_stack = html.escape(str(context.get("source_stack", "Unknown")))
+    raw_format = html.escape(str(normalization.get("raw_format", "Raw evidence exports")))
+    users = html.escape(str(normalization.get("users", 0)))
+    groups = html.escape(str(normalization.get("groups", 0)))
+    devices = html.escape(str(normalization.get("devices", 0)))
+    permissions = html.escape(str(normalization.get("permissions", 0)))
+    events = html.escape(str(normalization.get("access_events", 0)))
+    processes = html.escape(str(normalization.get("processes", 0)))
+
+    st.markdown(
+        f"""
+        <div class="pipeline-panel">
+            <div class="panel-title">
+                <h3>Evidence Normalization</h3>
+                <span>{source_stack}</span>
+            </div>
+            <div class="pipeline">
+                <div class="pipeline-step">
+                    <strong>Raw packet</strong>
+                    <span>{raw_format}</span>
+                </div>
+                <div class="pipeline-step">
+                    <strong>Normalized model</strong>
+                    <span>{users} users, {groups} groups, {devices} devices, {processes} processes, {permissions} permissions, {events} access events.</span>
+                </div>
+                <div class="pipeline-step">
+                    <strong>Deterministic check</strong>
+                    <span>Assessment objectives are evaluated from evidence references before AI remediation is generated.</span>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_time_to_finding_comparison(result: dict[str, Any]) -> None:
+    runtime = result.get("context", {}).get("runtime_metrics", {})
+    elapsed = html.escape(str(runtime.get("verification_elapsed_ms", 0)))
+    findings = html.escape(str(runtime.get("findings_found", len(result.get("findings", [])))))
+    evidence_count = html.escape(str(len(result.get("evidence_refs", []))))
+
+    st.markdown(
+        f"""
+        <div class="comparison-panel">
+            <div class="panel-title">
+                <h3>Validation Snapshot</h3>
+                <span>Representative packet, not production customer data</span>
+            </div>
+            <div class="comparison-grid">
+                <div class="comparison-cell">
+                    <strong>{evidence_count}</strong>
+                    <span>Evidence files normalized automatically.</span>
+                </div>
+                <div class="comparison-cell">
+                    <strong>{elapsed} ms</strong>
+                    <span>Measured deterministic verification time for this packet.</span>
+                </div>
+                <div class="comparison-cell">
+                    <strong>{findings}</strong>
+                    <span>Evidence-linked findings returned from seeded or clean state.</span>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _safe_preview_file(path: Path) -> None:
@@ -112,6 +866,14 @@ def _reset_ncat() -> Path:
 def _stop_ncat() -> None:
     st.session_state.ncat_running = False
     st.session_state.ncat_event_log.append("NCAT monitor stopped.")
+
+
+def _clear_llm_cache(packet_dir: str | Path | None = None) -> None:
+    st.session_state.llm_attempted_signatures = set()
+    if packet_dir:
+        remediation_path = Path(packet_dir) / "outputs" / "remediation_steps.md"
+        if remediation_path.exists():
+            remediation_path.unlink()
 
 
 def _is_okta_box_jamf_packet(packet_dir: Path) -> bool:
@@ -384,206 +1146,251 @@ def _render_llm_once(packet_dir: str | Path, result: dict[str, Any]) -> None:
 
 
 def _render_verification_result(packet_dir: str | Path, heading: str) -> None:
-    st.subheader(heading)
+    st.markdown(f"## {heading}")
     try:
         result = verify_packet(packet_dir)
         scorecard_path, report_path = write_outputs(packet_dir, result)
 
         status = result["status"]
-        if status == "MET":
-            st.success("Status: MET")
-        elif status == "NOT MET":
-            st.error("Status: NOT MET")
-        else:
-            st.warning("Status: NOT APPLICABLE")
-
         findings = result.get("findings", [])
         context = result.get("context", {})
         severity_counts = Counter(_dashboard_severity(f) for f in findings)
         total_findings = len(findings)
+        status_text = html.escape(_status_label(status))
+        source_stack = html.escape(str(context.get("source_stack", "Unknown")))
+        resource_name = html.escape(str(context.get("resource_name", "Unknown")))
+        status_class = _status_class(status)
 
-        st.markdown("### Time-to-Finding Metrics")
-        runtime = context.get("runtime_metrics", {})
-        c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("Elapsed ms", runtime.get("verification_elapsed_ms", 0))
-        c2.metric("Users", runtime.get("users_evaluated", 0))
-        c3.metric("Devices", runtime.get("devices_evaluated", 0))
-        c4.metric("Permission Edges", runtime.get("permission_edges_evaluated", 0))
-        c5.metric("Findings", runtime.get("findings_found", total_findings))
+        st.markdown(
+            f"""
+            <div class="status-strip">
+                <div>
+                    <h3>{html.escape(result["control_id"])} assessment result</h3>
+                    <p>{source_stack} evidence evaluated for <strong>{resource_name}</strong>.</p>
+                </div>
+                <div class="pill {status_class}">{status_text}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        _render_summary_cards(result)
 
-        st.markdown("### Normalization")
-        normalization = context.get("normalization_summary", {})
-        st.dataframe(
-            [{"field": key, "value": value} for key, value in normalization.items()],
-            use_container_width=True,
-            hide_index=True,
+        readiness_cols = st.columns([1.35, 0.85])
+        with readiness_cols[0]:
+            _render_objective_readiness(result)
+        with readiness_cols[1]:
+            _render_action_queue(result)
+
+        overview_tab, findings_tab, remediation_tab, evidence_tab = st.tabs(
+            ["Overview", "Findings", "Remediation", "Evidence & exports"]
         )
 
-        st.json(
-            {
-                "control_id": result["control_id"],
-                "source_stack": context.get("source_stack"),
-                "resource_name": context.get("resource_name"),
-                "status": result["status"],
-                "findings_count": total_findings,
-                "effective_access_count": context.get("effective_access_count"),
-            }
-        )
+        with overview_tab:
+            _render_evidence_pipeline(result)
+            st.write("")
+            _render_time_to_finding_comparison(result)
+            st.write("")
 
-        st.markdown("### Error Dashboard")
-        e1, e2, e3, e4, e5 = st.columns(5)
-        e1.metric("Total Errors", total_findings)
-        e2.metric("High", severity_counts.get("high", 0))
-        e3.metric("Medium", severity_counts.get("medium", 0))
-        e4.metric("Low", severity_counts.get("low", 0))
-        e5.metric("Info", severity_counts.get("info", 0))
+            st.markdown("### Time-to-Finding")
+            runtime = context.get("runtime_metrics", {})
+            c1, c2, c3, c4, c5 = st.columns(5)
+            c1.metric("Elapsed", f"{runtime.get('verification_elapsed_ms', 0)} ms")
+            c2.metric("Users", runtime.get("users_evaluated", 0))
+            c3.metric("Devices", runtime.get("devices_evaluated", 0))
+            c4.metric("Permission Edges", runtime.get("permission_edges_evaluated", 0))
+            c5.metric("Findings", runtime.get("findings_found", total_findings))
 
-        if findings:
-            st.markdown("#### Error Categories")
-            bucket_counts = Counter(_root_cause_bucket(f) for f in findings)
+            st.markdown("### Assessment Objectives")
+            objectives = context.get("assessment_objectives")
+            if objectives:
+                objective_rows = [
+                    {
+                        "objective": k.replace("_", " "),
+                        "status": v,
+                    }
+                    for k, v in objectives.items()
+                ]
+                st.dataframe(
+                    objective_rows,
+                    use_container_width=True,
+                    hide_index=True,
+                )
+
+            st.markdown("### Normalized Evidence Model")
+            normalization = context.get("normalization_summary", {})
             st.dataframe(
                 [
-                    {"category": category, "count": count}
-                    for category, count in sorted(
-                        bucket_counts.items(), key=lambda x: x[1], reverse=True
-                    )
+                    {"field": str(key), "value": str(value)}
+                    for key, value in normalization.items()
                 ],
                 use_container_width=True,
                 hide_index=True,
             )
 
-        objectives = context.get("assessment_objectives")
-        if objectives:
-            st.markdown("### Assessment Objectives")
+        with findings_tab:
+            st.markdown("### Finding Summary")
+            e1, e2, e3, e4, e5 = st.columns(5)
+            e1.metric("Total", total_findings)
+            e2.metric("High", severity_counts.get("high", 0))
+            e3.metric("Medium", severity_counts.get("medium", 0))
+            e4.metric("Low", severity_counts.get("low", 0))
+            e5.metric("Info", severity_counts.get("info", 0))
+
+            if findings:
+                st.markdown("### Root Causes")
+                bucket_counts = Counter(_root_cause_bucket(f) for f in findings)
+                st.dataframe(
+                    [
+                        {"category": category, "count": count}
+                        for category, count in sorted(
+                            bucket_counts.items(), key=lambda x: x[1], reverse=True
+                        )
+                    ],
+                    use_container_width=True,
+                    hide_index=True,
+                )
+
+                findings_for_display = []
+                for finding in findings:
+                    normalized_severity = _dashboard_severity(finding)
+                    findings_for_display.append(
+                        {
+                            "severity": _severity_badge(normalized_severity),
+                            "root cause": _root_cause_bucket(finding),
+                            "finding": finding.get("message", ""),
+                            "evidence": finding.get("evidence_ref", ""),
+                        }
+                    )
+                st.markdown("### Evidence-Linked Findings")
+                st.dataframe(
+                    findings_for_display,
+                    use_container_width=True,
+                    hide_index=True,
+                )
+            else:
+                st.info("No findings. Effective access complies with the configured CUI access rules.")
+
+        with remediation_tab:
+            proposed_actions = result.get("proposed_actions", [])
+            if proposed_actions:
+                st.markdown("### Human-Approved Candidate Actions")
+                finding_signature = _finding_signature(result)
+                for idx, action in enumerate(proposed_actions, start=1):
+                    finding_text = action.get("finding", "")
+                    st.markdown(
+                        f"""
+                        <div class="action-card">
+                            <div class="mini-label">Pending approval</div>
+                            <strong>{html.escape(action.get("proposed_action", ""))}</strong>
+                            <span><strong>Candidate API:</strong> {html.escape(action.get("candidate_api_call", ""))}</span><br>
+                            <span><strong>Risk:</strong> {html.escape(action.get("risk", ""))}</span><br>
+                            <span><strong>Required approval:</strong> {html.escape(action.get("required_approval", ""))}</span><br>
+                            <span><strong>Finding:</strong> {html.escape(finding_text)}</span>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    cols = st.columns([1, 1, 1, 5])
+                    if cols[0].button("Approve", key=f"approve_{idx}_{finding_signature}"):
+                        st.session_state.ncat_event_log.append(
+                            _approve_action(Path(packet_dir), finding_text)
+                        )
+                        _clear_llm_cache(packet_dir)
+                        _rerun()
+                    if cols[1].button("Reject", key=f"reject_{idx}_{finding_signature}"):
+                        st.session_state.ncat_event_log.append(
+                            f"Rejected remediation; evidence left unchanged for finding: {finding_text}"
+                        )
+                        _rerun()
+                    if cols[2].button("Ticket", key=f"ticket_{idx}_{finding_signature}"):
+                        st.session_state.ncat_event_log.append(
+                            f"Created ticket; evidence left unchanged for finding: {finding_text}"
+                        )
+                        _rerun()
+                    cols[3].caption("Actions update only the runtime packet during the demo.")
+            elif status == "MET":
+                st.success("No remediation required for the current evidence state.")
+            else:
+                st.info("No automated candidate action is available for this finding type.")
+
+            _render_llm_once(packet_dir, result)
+
+        with evidence_tab:
+            st.markdown("### Evidence Used")
             st.dataframe(
-                [{"objective": k, "status": v} for k, v in objectives.items()],
+                [{"evidence file": evidence} for evidence in result["evidence_refs"]],
                 use_container_width=True,
                 hide_index=True,
             )
 
-        st.markdown("### Findings")
-        if findings:
-            findings_for_display = []
-            for finding in findings:
-                normalized_severity = _dashboard_severity(finding)
-                findings_for_display.append(
-                    {
-                        "severity": _severity_badge(normalized_severity),
-                        "root_cause": _root_cause_bucket(finding),
-                        "message": finding.get("message", ""),
-                        "evidence_ref": finding.get("evidence_ref", ""),
-                    }
+            st.markdown("### Output Files")
+            st.caption(f"scorecard.json: `{scorecard_path}`")
+            st.caption(f"report.md: `{report_path}`")
+            d1, d2 = st.columns(2)
+            with scorecard_path.open("rb") as handle:
+                d1.download_button(
+                    "Download scorecard.json",
+                    data=handle.read(),
+                    file_name="scorecard.json",
+                    mime="application/json",
                 )
-            st.dataframe(findings_for_display, use_container_width=True, hide_index=True)
-        else:
-            st.info("No findings. Effective access complies with configured rules.")
-
-        proposed_actions = result.get("proposed_actions", [])
-        if proposed_actions:
-            st.markdown("### Human-Approved Remediation Actions")
-            actions_for_display = []
-            finding_signature = _finding_signature(result)
-            for idx, action in enumerate(proposed_actions, start=1):
-                finding_text = action.get("finding", "")
-                actions_for_display.append(
-                    {
-                        "approval_state": "Pending approval",
-                        "action": action.get("proposed_action", ""),
-                        "candidate_api_call": action.get("candidate_api_call", ""),
-                        "required_approval": action.get("required_approval", ""),
-                        "risk": action.get("risk", ""),
-                    }
+            with report_path.open("rb") as handle:
+                d2.download_button(
+                    "Download report.md",
+                    data=handle.read(),
+                    file_name="report.md",
+                    mime="text/markdown",
                 )
-                cols = st.columns([1, 1, 1, 4])
-                if cols[0].button("Approve", key=f"approve_{idx}_{finding_signature}"):
-                    st.session_state.ncat_event_log.append(
-                        _approve_action(Path(packet_dir), finding_text)
-                    )
-                    _rerun()
-                if cols[1].button("Reject", key=f"reject_{idx}_{finding_signature}"):
-                    st.session_state.ncat_event_log.append(
-                        f"Rejected remediation; evidence left unchanged for finding: {finding_text}"
-                    )
-                    _rerun()
-                if cols[2].button("Ticket", key=f"ticket_{idx}_{finding_signature}"):
-                    st.session_state.ncat_event_log.append(
-                        f"Created ticket; evidence left unchanged for finding: {finding_text}"
-                    )
-                    _rerun()
-                cols[3].caption(finding_text)
-            st.dataframe(actions_for_display, use_container_width=True, hide_index=True)
-
-        st.markdown("### Evidence Used")
-        for evidence in result["evidence_refs"]:
-            st.write(f"- `{evidence}`")
-
-        st.markdown("### Output Files")
-        st.write(f"- `scorecard.json`: `{scorecard_path}`")
-        st.write(f"- `report.md`: `{report_path}`")
-
-        with scorecard_path.open("rb") as handle:
-            st.download_button(
-                "Download scorecard.json",
-                data=handle.read(),
-                file_name="scorecard.json",
-                mime="application/json",
-            )
-        with report_path.open("rb") as handle:
-            st.download_button(
-                "Download report.md",
-                data=handle.read(),
-                file_name="report.md",
-                mime="text/markdown",
-            )
-
-        _render_llm_once(packet_dir, result)
     except Exception as exc:
         st.error(f"Verification failed: {exc}")
 
 
 _init_session_state()
+_inject_global_styles()
 
-st.title("NexGen CMMC Level 2 Continuous Verifier")
 st.markdown(
     """
-This demo verifies CMMC Level 2 `AC.L2-3.1.1` using deterministic, explainable checks.
-It evaluates whether only authorized users, processes, and devices can access a CUI resource.
-"""
+    <div class="hero">
+        <div class="eyebrow">NexGen Compliance Automation</div>
+        <h1>CMMC Level 2 continuous verification for CUI access.</h1>
+        <p>
+            Demonstrates AC.L2-3.1.1 across multiple enterprise stacks with deterministic
+            evidence checks, measurable time-to-finding, and human-approved remediation.
+        </p>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
-
-st.subheader("Demo Scope")
-st.markdown(
-    """
-- Working control: `AC.L2-3.1.1` Authorized Access Control.
-- Evidence sources: Microsoft Entra/SharePoint/Intune or Okta/Box/Jamf.
-- Architecture: raw stack exports normalize into one evidence model, then the same verifier runs.
-- AI role: explain deterministic findings and propose human-approved remediation actions.
-"""
-)
+_render_proof_cards()
 
 packet_options = {
-    "Microsoft CSV packet": Path.cwd() / "packet_ac_l2_3_1_1_microsoft",
-    "Okta/Box/Jamf JSON packet": Path.cwd() / "packet_ac_l2_3_1_1_okta_box_jamf",
-    "Original L1 packet": Path.cwd() / "packet_ac_l1_b_1_i",
+    "Microsoft: Entra + SharePoint + Intune": Path.cwd() / "packet_ac_l2_3_1_1_microsoft",
+    "Okta + Box + Jamf": Path.cwd() / "packet_ac_l2_3_1_1_okta_box_jamf",
+    "Legacy Level 1 packet": Path.cwd() / "packet_ac_l1_b_1_i",
 }
 
-st.subheader("Evidence Packet")
-selected_packet_label = st.selectbox(
-    "Choose representative evidence packet",
-    options=list(packet_options),
-    index=0,
-)
-default_packet = str(packet_options[selected_packet_label].resolve())
-packet_dir = st.text_input("Evidence packet folder", value=default_packet)
-source_packet_path = Path(packet_dir)
-
-left, middle, right = st.columns([1, 1, 1])
-with left:
-    show_preview = st.checkbox("Preview raw evidence", value=True)
-with middle:
+with st.sidebar:
+    st.title("NexGen")
+    st.caption("Continuous verifier demo")
+    st.divider()
+    selected_packet_label = st.selectbox(
+        "Evidence stack",
+        options=list(packet_options),
+        index=0,
+    )
+    default_packet = str(packet_options[selected_packet_label].resolve())
+    packet_dir = st.text_input("Packet folder", value=default_packet)
+    show_preview = st.checkbox("Show raw evidence", value=False)
     show_roadmap = st.checkbox("Show Level 2 roadmap", value=True)
-with right:
-    run_ncat = st.button("Run NCAT", type="primary")
+    run_ncat = st.button("Run NCAT", type="primary", use_container_width=True)
+    st.divider()
+    st.markdown("**Demo sequence**")
+    st.caption("1. Run NCAT on the clean packet.")
+    st.caption("2. Inject user or device drift.")
+    st.caption("3. Review findings and candidate API actions.")
+    st.caption("4. Approve, reject, or ticket the change.")
+
+source_packet_path = Path(packet_dir)
 
 if run_ncat:
     if source_packet_path.exists():
@@ -597,30 +1404,57 @@ if st.session_state.ncat_running and st.session_state.ncat_packet_dir:
 packet_path = Path(packet_dir)
 
 if st.session_state.ncat_running:
-    st.subheader("NCAT Continuous Monitor")
-    st.caption(
-        "NCAT is watching the active runtime packet. Each inject mutates the runtime evidence "
-        "and triggers one Streamlit rerun; the LLM remediation call is gated to one attempt per unique finding state."
+    st.markdown(
+        f"""
+        <div class="monitor-bar">
+            <strong>NCAT monitor is live</strong><br>
+            <span>Runtime packet: {html.escape(str(packet_path))}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
-    status_cols = st.columns([2, 1, 1, 1])
-    status_cols[0].info(f"Active runtime evidence: `{packet_path}`")
-    if status_cols[1].button("Inject User"):
+    status_cols = st.columns([1, 1, 1, 1])
+    if status_cols[0].button("Inject User", use_container_width=True):
         st.session_state.ncat_event_log.append(_inject_unauthorized_user(packet_path))
-    if status_cols[2].button("Inject Device"):
+        _clear_llm_cache(packet_path)
+    if status_cols[1].button("Inject Device", use_container_width=True):
         st.session_state.ncat_event_log.append(_inject_unauthorized_device(packet_path))
-    if status_cols[3].button("Reset"):
+        _clear_llm_cache(packet_path)
+    if status_cols[2].button("Reset", use_container_width=True):
         packet_path = _reset_ncat()
         packet_dir = str(packet_path)
-
-    if st.button("Stop NCAT"):
+        _clear_llm_cache(packet_path)
+    if status_cols[3].button("Stop", use_container_width=True):
         _stop_ncat()
 
-    st.markdown("#### NCAT Event Log")
-    for event in st.session_state.ncat_event_log[-6:]:
-        st.write(f"- {event}")
+    with st.expander("NCAT event log", expanded=True):
+        for event in st.session_state.ncat_event_log[-6:]:
+            st.write(f"- {event}")
+else:
+    st.markdown("### Ready to verify")
+    st.info("Choose a representative evidence stack in the sidebar and run NCAT to create a clean runtime packet.")
+
+st.markdown("### Representative Evidence Stack")
+stack_rows = [
+    {
+        "stack": "Microsoft",
+        "identity": "Entra ID",
+        "resource permissions": "SharePoint",
+        "device posture": "Intune",
+        "raw shape": "CSV exports",
+    },
+    {
+        "stack": "Non-Microsoft",
+        "identity": "Okta",
+        "resource permissions": "Box",
+        "device posture": "Jamf",
+        "raw shape": "Nested API-style JSON",
+    },
+]
+st.dataframe(stack_rows, use_container_width=True, hide_index=True)
 
 if show_preview:
-    st.subheader("Raw Evidence Preview")
+    st.markdown("### Raw Evidence Preview")
     if not packet_path.exists():
         st.error(f"Packet folder does not exist: `{packet_path}`")
     else:
@@ -634,7 +1468,7 @@ if show_preview:
                     _safe_preview_file(path)
 
 if show_roadmap:
-    st.subheader("CMMC Level 2 Coverage Roadmap")
+    st.markdown("### CMMC Level 2 Coverage Roadmap")
     st.dataframe(
         [
             {
@@ -661,4 +1495,4 @@ if show_roadmap:
     )
 
 if st.session_state.ncat_running:
-    _render_verification_result(packet_dir, "NCAT Monitor Result")
+    _render_verification_result(packet_dir, "Readiness Overview")
