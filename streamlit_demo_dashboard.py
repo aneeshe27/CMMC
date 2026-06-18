@@ -408,6 +408,14 @@ def _inject_global_styles() -> None:
             color: var(--action);
             font-size: 1.35rem;
             font-weight: 800;
+            text-decoration: none;
+            line-height: 1;
+            padding: 0.2rem 0.35rem;
+            border-radius: 6px;
+        }
+        .queue-arrow:hover {
+            background: #eff6ff;
+            color: var(--action-dark);
         }
         .pipeline {
             display: grid;
@@ -697,7 +705,8 @@ def _render_action_queue(result: dict[str, Any]) -> None:
                 f"<strong>{html.escape(category)}</strong>"
                 f"<span>{count} finding{'s' if count != 1 else ''} awaiting review</span>"
                 "</div>"
-                '<div class="queue-arrow">&rarr;</div>'
+                '<a class="queue-arrow" href="#findings-jump-target" '
+                'aria-label="Jump to evidence-linked findings">&rarr;</a>'
                 "</div>"
             )
             for category, count in sorted(bucket_counts.items(), key=lambda item: item[0])
@@ -743,6 +752,21 @@ def _render_action_queue(result: dict[str, Any]) -> None:
         ),
         unsafe_allow_html=True,
     )
+
+
+def _findings_for_display(findings: list[dict[str, str]]) -> list[dict[str, str]]:
+    findings_for_display = []
+    for finding in findings:
+        normalized_severity = _dashboard_severity(finding)
+        findings_for_display.append(
+            {
+                "severity": _severity_badge(normalized_severity),
+                "root cause": _root_cause_bucket(finding),
+                "finding": finding.get("message", ""),
+                "evidence": finding.get("evidence_ref", ""),
+            }
+        )
+    return findings_for_display
 
 
 def _render_evidence_pipeline(result: dict[str, Any]) -> None:
@@ -1181,6 +1205,18 @@ def _render_verification_result(packet_dir: str | Path, heading: str) -> None:
         with readiness_cols[1]:
             _render_action_queue(result)
 
+        if findings:
+            st.markdown(
+                '<span id="findings-jump-target"></span>',
+                unsafe_allow_html=True,
+            )
+            st.markdown("### Evidence-Linked Findings")
+            st.dataframe(
+                _findings_for_display(findings),
+                use_container_width=True,
+                hide_index=True,
+            )
+
         overview_tab, findings_tab, remediation_tab, evidence_tab = st.tabs(
             ["Overview", "Findings", "Remediation", "Evidence & exports"]
         )
@@ -1250,20 +1286,9 @@ def _render_verification_result(packet_dir: str | Path, heading: str) -> None:
                     hide_index=True,
                 )
 
-                findings_for_display = []
-                for finding in findings:
-                    normalized_severity = _dashboard_severity(finding)
-                    findings_for_display.append(
-                        {
-                            "severity": _severity_badge(normalized_severity),
-                            "root cause": _root_cause_bucket(finding),
-                            "finding": finding.get("message", ""),
-                            "evidence": finding.get("evidence_ref", ""),
-                        }
-                    )
                 st.markdown("### Evidence-Linked Findings")
                 st.dataframe(
-                    findings_for_display,
+                    _findings_for_display(findings),
                     use_container_width=True,
                     hide_index=True,
                 )
@@ -1282,7 +1307,8 @@ def _render_verification_result(packet_dir: str | Path, heading: str) -> None:
                         <div class="action-card">
                             <div class="mini-label">Pending approval</div>
                             <strong>{html.escape(action.get("proposed_action", ""))}</strong>
-                            <span><strong>Candidate API:</strong> {html.escape(action.get("candidate_api_call", ""))}</span><br>
+                            <span><strong>Operator action:</strong> {html.escape(action.get("operator_action", ""))}</span><br>
+                            <span><strong>Candidate API:</strong> {html.escape(action.get("api_label", "Technical action"))} - <code>{html.escape(action.get("candidate_api_call", ""))}</code></span><br>
                             <span><strong>Risk:</strong> {html.escape(action.get("risk", ""))}</span><br>
                             <span><strong>Required approval:</strong> {html.escape(action.get("required_approval", ""))}</span><br>
                             <span><strong>Finding:</strong> {html.escape(finding_text)}</span>

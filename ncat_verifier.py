@@ -419,44 +419,88 @@ def _load_normalized_evidence(packet_path: Path, control: dict[str, Any]) -> dic
 def _action_for_finding(finding: dict[str, str], source_stack: str) -> dict[str, str]:
     message = finding.get("message", "")
     if "Unauthorized user" in message or "Guest/external user" in message:
+        user_id = finding.get("user_id", "{user-id}")
+        group_id = finding.get("group_id", "{group-id}")
+        user_name = finding.get("user_name", "the listed user")
         if source_stack.startswith("Microsoft"):
-            api = "DELETE /groups/{group-id}/members/{user-id}/$ref"
+            api = f"DELETE /v1.0/groups/{group_id}/members/{user_id}/$ref"
+            operator_action = (
+                f"In Microsoft Entra ID, remove {user_name} from the "
+                "CUI-Authorized group."
+            )
+            api_label = "Microsoft Graph group membership removal"
             owner = "IT Security Owner + CUI Data Owner"
         else:
-            api = "DELETE /api/v1/groups/{groupId}/users/{userId}"
+            api = f"DELETE /api/v1/groups/{group_id}/users/{user_id}"
+            operator_action = (
+                f"In Okta, remove {user_name} from the CUI-Authorized group."
+            )
+            api_label = "Okta group user removal"
             owner = "IT Security Owner + CUI Data Owner"
         return {
             "proposed_action": "Remove unauthorized principal from the CUI-authorized group.",
+            "operator_action": operator_action,
+            "api_label": api_label,
             "candidate_api_call": api,
             "risk": "May disrupt business access if the group membership is legitimate but undocumented.",
             "required_approval": owner,
         }
     if "device" in message.lower():
+        device_id = finding.get("device_id", "{device-id}")
+        device_name = finding.get("device_name", "the listed device")
         if source_stack.startswith("Microsoft"):
-            api = "PATCH /deviceManagement/managedDevices/{managedDeviceId}"
+            api = f"PATCH /v1.0/deviceManagement/managedDevices/{device_id}"
+            operator_action = (
+                f"In Intune, block CUI access for {device_name} or move it through "
+                "the approved-device workflow."
+            )
+            api_label = "Microsoft Graph managed device update"
         else:
-            api = "POST /api/v1/computers-inventory/{id}/extension-attributes"
+            api = f"POST /api/v1/computers-inventory/{device_id}/extension-attributes"
+            operator_action = (
+                f"In Jamf, investigate {device_name} and update its approved-device "
+                "status only after owner review."
+            )
+            api_label = "Jamf device inventory update"
         return {
             "proposed_action": (
                 "Block CUI access from the device or start the device authorization workflow."
             ),
+            "operator_action": operator_action,
+            "api_label": api_label,
             "candidate_api_call": api,
             "risk": "Device may be legitimate but missing approval or posture evidence.",
             "required_approval": "IT Security Owner + Endpoint Owner",
         }
     if "process/app" in message:
+        app_id = finding.get("app_id", "{app-id}")
+        app_name = finding.get("app_name", "the listed application")
         if source_stack.startswith("Microsoft"):
-            api = "PATCH /applications/{id}"
+            api = f"PATCH /v1.0/applications/{app_id}"
+            operator_action = (
+                f"In Entra ID, disable {app_name} or add it to the "
+                "approved CUI process list after review."
+            )
+            api_label = "Microsoft Graph application update"
         else:
-            api = "POST /api/v1/apps/{appId}/lifecycle/deactivate"
+            api = f"POST /api/v1/apps/{app_id}/lifecycle/deactivate"
+            operator_action = (
+                f"In Okta, deactivate {app_name} or add it to the approved "
+                "CUI process list after review."
+            )
+            api_label = "Okta app lifecycle action"
         return {
             "proposed_action": "Disable, remove, or formally authorize the process path.",
+            "operator_action": operator_action,
+            "api_label": api_label,
             "candidate_api_call": api,
             "risk": "May interrupt automated business workflows.",
             "required_approval": "IT Security Owner + Application Owner",
         }
     return {
         "proposed_action": "Review the referenced evidence and update authorization policy.",
+        "operator_action": "Open a review ticket for the control owner with the evidence reference.",
+        "api_label": "Workflow ticket",
         "candidate_api_call": "Convert finding to ticket",
         "risk": "Manual classification required before technical change.",
         "required_approval": "Control Owner",
@@ -587,7 +631,21 @@ def verify_packet(packet_dir: str | Path) -> dict[str, Any]:
         for src in sources:
             access_path = ""
             if src.source_principal_type == "Group":
-                access_path = f" through group '{src.source_principal_id}'"
+                group = groups.get(src.source_principal_id, {})
+                group_name = group.get("group_name")
+                group_label = src.source_principal_id
+                if group_name:
+                    group_label = f"{group_name} ({src.source_principal_id})"
+                access_path = f" through group '{group_label}'"
+            finding_context = {
+                "user_id": user_id,
+                "user_name": user_name,
+                "principal_type": src.source_principal_type,
+                "principal_id": src.source_principal_id,
+            }
+            if src.source_principal_type == "Group":
+                finding_context["group_id"] = src.source_principal_id
+                finding_context["group_name"] = group_name or src.source_principal_id
             if not is_enabled:
                 objective_status["d_access_limited_to_authorized_users"] = "NOT MET"
                 findings.append(
@@ -598,6 +656,7 @@ def verify_packet(packet_dir: str | Path) -> dict[str, Any]:
                             f"'{resource_name}'{access_path}."
                         ),
                         "evidence_ref": src.evidence_ref,
+                        **finding_context,
                     }
                 )
             if control.get("block_guest_users", False) and not is_member_type:
@@ -610,6 +669,7 @@ def verify_packet(packet_dir: str | Path) -> dict[str, Any]:
                             f"'{resource_name}'{access_path}."
                         ),
                         "evidence_ref": src.evidence_ref,
+                        **finding_context,
                     }
                 )
             if not is_authorized_member:
@@ -623,6 +683,7 @@ def verify_packet(packet_dir: str | Path) -> dict[str, Any]:
                             f"'{authorized_group_name}'."
                         ),
                         "evidence_ref": src.evidence_ref,
+                        **finding_context,
                     }
                 )
 
@@ -697,9 +758,11 @@ def verify_packet(packet_dir: str | Path) -> dict[str, Any]:
                             "severity": "high",
                             "message": f"Unknown process/app '{actor_id}' accessed '{resource_name}'.",
                             "evidence_ref": event_ref,
+                            "app_id": actor_id,
                         }
                     )
                 else:
+                    app_name = app.get("display_name", actor_id)
                     if not app.get("account_enabled"):
                         objective_status[
                             "e_access_limited_to_authorized_processes"
@@ -708,10 +771,12 @@ def verify_packet(packet_dir: str | Path) -> dict[str, Any]:
                             {
                                 "severity": "high",
                                 "message": (
-                                    f"Disabled process/app '{app.get('display_name', actor_id)}' "
+                                    f"Disabled process/app '{app_name}' "
                                     f"accessed '{resource_name}'."
                                 ),
                                 "evidence_ref": event_ref,
+                                "app_id": actor_id,
+                                "app_name": app_name,
                             }
                         )
                     if actor_id not in authorized_app_ids:
@@ -722,10 +787,12 @@ def verify_packet(packet_dir: str | Path) -> dict[str, Any]:
                             {
                                 "severity": "high",
                                 "message": (
-                                    f"Unauthorized process/app '{app.get('display_name', actor_id)}' "
+                                    f"Unauthorized process/app '{app_name}' "
                                     f"accessed '{resource_name}'."
                                 ),
                                 "evidence_ref": event_ref,
+                                "app_id": actor_id,
+                                "app_name": app_name,
                             }
                         )
 
@@ -738,9 +805,11 @@ def verify_packet(packet_dir: str | Path) -> dict[str, Any]:
                             "severity": "high",
                             "message": f"Unknown device '{device_id}' accessed '{resource_name}'.",
                             "evidence_ref": event_ref,
+                            "device_id": device_id,
                         }
                     )
                 else:
+                    device_name = device.get("device_name", device_id)
                     if not device.get("managed"):
                         objective_status[
                             "f_access_limited_to_authorized_devices"
@@ -749,10 +818,12 @@ def verify_packet(packet_dir: str | Path) -> dict[str, Any]:
                             {
                                 "severity": "high",
                                 "message": (
-                                    f"Unmanaged device '{device.get('device_name', device_id)}' "
+                                    f"Unmanaged device '{device_name}' "
                                     f"accessed '{resource_name}'."
                                 ),
                                 "evidence_ref": event_ref,
+                                "device_id": device_id,
+                                "device_name": device_name,
                             }
                         )
                     if not device.get("compliant"):
@@ -763,10 +834,12 @@ def verify_packet(packet_dir: str | Path) -> dict[str, Any]:
                             {
                                 "severity": "high",
                                 "message": (
-                                    f"Non-compliant device '{device.get('device_name', device_id)}' "
+                                    f"Non-compliant device '{device_name}' "
                                     f"accessed '{resource_name}'."
                                 ),
                                 "evidence_ref": event_ref,
+                                "device_id": device_id,
+                                "device_name": device_name,
                             }
                         )
                     if device_id not in authorized_device_ids:
@@ -777,10 +850,12 @@ def verify_packet(packet_dir: str | Path) -> dict[str, Any]:
                             {
                                 "severity": "high",
                                 "message": (
-                                    f"Unauthorized device '{device.get('device_name', device_id)}' "
+                                    f"Unauthorized device '{device_name}' "
                                     f"accessed '{resource_name}'."
                                 ),
                                 "evidence_ref": event_ref,
+                                "device_id": device_id,
+                                "device_name": device_name,
                             }
                         )
 
@@ -899,7 +974,11 @@ def build_report_markdown(result: dict[str, Any]) -> str:
                 [
                     f"{idx}. {action.get('proposed_action')}",
                     f"   - Finding: `{action.get('finding')}`",
-                    f"   - Candidate API call: `{action.get('candidate_api_call')}`",
+                    f"   - Operator action: {action.get('operator_action')}",
+                    (
+                        "   - Candidate API call: "
+                        f"{action.get('api_label')} - `{action.get('candidate_api_call')}`"
+                    ),
                     f"   - Risk: {action.get('risk')}",
                     f"   - Required approval: {action.get('required_approval')}",
                 ]
