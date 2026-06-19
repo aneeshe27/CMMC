@@ -39,8 +39,7 @@ processes, and access events.
 
 
 The important thing is that the compliance decision is deterministic. NexGen uses the given API's to verify the user's backend with NIST standards
-AI is not deciding whether the control passed or failed. The algorithm does
-that. AI is used after the deterministic finding to explain the issue and help a
+AI is only used after the deterministic finding to explain the issue and help a
 human operator understand the remediation path.
 
 ## Start Clean: Run NCAT
@@ -99,9 +98,6 @@ The operator can approve, reject, or create a ticket. That is important because
 in a real environment, the system should not silently modify production access.
 It should make the correct action easy to understand and easy to govern.
 
-If the AI remediation is enabled, the LLM can explain the deterministic finding
-in plain language. But again, the LLM is not making the compliance decision. It
-is interpreting a finding that the verifier already proved.
 
 ## Approve The User Fix
 
@@ -213,15 +209,8 @@ restore the control, and can the system prove the fix worked after the change?
 LLM-only compliance tools can summarize and draft quickly, but they create trust
 issues if the model is deciding compliance from ambiguous evidence.
 
-NexGen takes a different approach. The compliance decision is deterministic,
-explainable, and evidence-linked. The AI layer is used only after that, to make
-the finding understandable and actionable.
+We also have multi-stack normalization across Microsoft and non-Microsoft environments.
 
-The defensible differentiators are:
-
-3. Multi-stack normalization across Microsoft and non-Microsoft environments.
-4. Human-approved remediation that translates a compliance failure into an IT
-   action.
 
 So the system is not just helping a contractor prepare for an assessment once.
 It helps them keep their environment inside CMMC bounds as users, groups,
@@ -242,10 +231,6 @@ normalizes the evidence, runs deterministic objective checks, identifies the
 offending evidence, produces a scorecard and report, and gives the operator
 clear remediation options.
 
-The impact is time, cost, and risk reduction. Instead of waiting for periodic
-manual review, contractors can verify critical CUI access controls quickly,
-using evidence-linked findings and measurable time-to-finding.
-
 As future work, we want the remediation layer to offer both directions. One path
 is the deterministic corrective action that restores compliance immediately:
 for example, remove Grace's access from the CUI resource because she is not
@@ -260,9 +245,8 @@ update, and file or update a ticket for follow-up.
 
 Same goal in both directions: every CUI access change becomes a deliberate,
 recorded decision rather than silent drift. The nontechnical operator should not
-have to reverse-engineer the CMMC requirement or the evidence packet. The app
+have to reverse-engineer the CMMC requirement or the entire architecture. The app
 should make the compliant path obvious, whether the right answer is to remove
 access or formally approve it.
 
-That is the product direction: from evidence packet, to finding, to
-human-approved action, to verified recovery.
+
