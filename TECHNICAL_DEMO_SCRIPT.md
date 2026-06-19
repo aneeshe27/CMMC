@@ -38,12 +38,7 @@ Intune device posture, authorized devices, service principals, authorized
 processes, and access events.
 
 
-The important thing is that the compliance decision is deterministic. NexGen
-expands group-based access, checks who effectively reaches the CUI resource,
-checks whether those users are internal and authorized, checks whether devices
-are managed, compliant, and explicitly approved, and checks whether processes
-are enabled and authorized.
-
+The important thing is that the compliance decision is deterministic. NexGen uses the given API's to verify the user's backend with NIST standards
 AI is not deciding whether the control passed or failed. The algorithm does
 that. AI is used after the deterministic finding to explain the issue and help a
 human operator understand the remediation path.
