@@ -55,8 +55,6 @@ But as you can see, we're also capable of assessing different stacks thanks to o
 
 Here this initial packet I made sure that everything was compliant.
 
-We also see the time to findings as well and since this is deterministic, and algorithmic, compliance can be determined very quickly.
-
 ## Inject 1: Unauthorized User Drift
 
 **On screen:** Click `Inject User`.
@@ -65,21 +63,6 @@ We also see the time to findings as well and since this is deterministic, and al
 
 Now I will simulate a common real-world drift event. Someone adds an external
 guest user, Grace Partner, to a group that has access to the CUI resource.
-
-In production, this could happen through an identity provider or admin console.
-For the demo, the app injects that drift into the runtime evidence packet so we
-can show the verifier catching it.
-
-**After clicking:**
-
-The result changed from `READY` to `ACTION REQUIRED`.
-
-NexGen expanded the group permission into effective user access and detected
-that Grace, an external guest, now reaches the CUI resource through the
-authorized group.
-
-Notice that the tool does not just say "failed." It identifies the failed
-assessment objective: access is no longer limited to authorized users.
 
 ## Show Findings And Remediation
 
@@ -90,31 +73,9 @@ assessment objective: access is no longer limited to authorized users.
 In the Findings tab, the issue is evidence-linked. The finding points back to
 the access path that caused the failure.
 
-In the Remediation tab, the system gives a human-approved candidate action tied
-to the exact offending evidence. This is not an automatic blind change. It is an
-approval-gated recommendation.
-
 The operator can approve, reject, or create a ticket. That is important because
 in a real environment, the system should not silently modify production access.
 It should make the correct action easy to understand and easy to govern.
-
-
-## Approve The User Fix
-
-**On screen:** Click `Approve`.
-
-**Say:**
-
-I will approve the remediation.
-
-The runtime evidence packet is updated by removing the injected guest
-membership, and the verifier reruns against the updated evidence.
-
-Now the control returns to `READY`.
-
-That is the verification loop: identify the offending evidence, explain the
-issue, present an approval-gated fix, update the runtime evidence, and prove the
-control is back to a passing state.
 
 ## Inject 2: Unauthorized Device Drift
 
