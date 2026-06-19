@@ -17,10 +17,12 @@ Hi, I’m Aneesh. This is the NexGen CMMC Level 2 verification demo.
 
 The problem we’re solving is that CMMC evidence is usually reviewed manually, periodically, and often after the environment has already changed. NexGen turns that into an objective-level drift detector.
 
-For this walkthrough, I’ll show one Level 2 control in depth: AC.L2-3.1.1, Authorized Access Control. The system reads identity, permission, device, process, and access-event evidence, determines whether CUI access is actually limited to authorized users, processes, and devices, and then gives a human operator approval-gated remediation options.
+For this walkthrough, I’ll show one Level 2 control in depth: AC.L2-3.1.1, Authorized Access Control. In simple terms, this control asks whether access to CUI is limited to
+authorized users, authorized processes acting on behalf of users, and authorized
+devices.
 
 The key point is that we are not just showing a checklist. We are showing a
-working verifier that reads evidence, maps it to the control objectives, finds
+working verifier that reads evidence, maps it to the NIST control objectives, finds
 the exact evidence that caused the issue, and proposes governed remediation
 actions that can be re-verified.
 
@@ -34,7 +36,6 @@ For this demo, the evidence packet represents a contractor environment. The
 Microsoft packet includes Entra ID users and groups, SharePoint permissions,
 Intune device posture, authorized devices, service principals, authorized
 processes, and access events.
-
 
 
 The important thing is that the compliance decision is deterministic. NexGen
@@ -56,39 +57,11 @@ human operator understand the remediation path.
 
 I will start with the Microsoft evidence packet and run NCAT.
 
-Here the runtime packet is created from a clean representative baseline. The
-result is `READY`, meaning the evidence satisfies this configured CUI access
-policy.
+But as you can see, we're also capable of assessing different stacks thanks to our normalization engine, so we are able to take you know, different architectures, and different technology stacks that users may have, and we normalize it to a format that our compliance engine can process.
 
-You can see the objective-level status: authorized users are identified,
-authorized processes are identified, authorized devices are identified, and
-access is limited to authorized users, processes, and devices.
+Here this initial packet I made sure that everything was compliant.
 
-The system also shows the normalized evidence model and runtime metrics,
-including time-to-finding in milliseconds. In this representative packet, the
-system is not taking hours to reconcile identity, permission, device, process,
-and access-event evidence. It is producing a repeatable scorecard, evidence
-references, and report in a measurable runtime.
-
-Those milliseconds are not the whole value by themselves, but they show the
-shift from manual review to machine-verifiable evidence checks.
-
-## Show Why This Is Easy For Operators
-
-**On screen:** Point to `To Do`, tabs, `Findings`, `Remediation`, and
-`Evidence & exports`.
-
-**Say:**
-
-This is designed for the security or IT person who may not be a CMMC expert.
-They do not need to read every CSV, JSON file, or assessment objective manually.
-
-The application tells them the current readiness state, what evidence was used,
-which objective failed, what the root cause category is, and what action is
-available.
-
-The goal is to move from audit language to operator action: what changed, why it
-matters, where the evidence is, and what can be approved, denied, or ticketed.
+We also see the time to findings as well and since this is deterministic, and algorithmic, compliance can be determined very quickly.
 
 ## Inject 1: Unauthorized User Drift
 
@@ -249,17 +222,8 @@ NexGen takes a different approach. The compliance decision is deterministic,
 explainable, and evidence-linked. The AI layer is used only after that, to make
 the finding understandable and actionable.
 
-That is the advancement we are trying to show here. NexGen is not just surfacing
-a gap and assigning a task for someone else to figure out. It identifies the
-specific access path or evidence row that caused the failure, proposes the
-specific governed action, and then re-verifies that the control returned to a
-passing state.
-
 The defensible differentiators are:
 
-1. Objective-level verification against operational evidence.
-2. Exact evidence-to-action mapping, where the tool points to the offending
-   access path, device, process, or policy record.
 3. Multi-stack normalization across Microsoft and non-Microsoft environments.
 4. Human-approved remediation that translates a compliance failure into an IT
    action.
